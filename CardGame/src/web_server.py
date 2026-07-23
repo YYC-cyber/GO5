@@ -10,6 +10,7 @@ from src.core.player import Player
 from src.core.enemy import Enemy
 from src.games.web_battle import WebBattle
 from src.games.level_mode import LevelManager
+from src import collection
 
 app = Flask(__name__, static_folder=None)
 
@@ -50,15 +51,15 @@ def favicon():
 # ── 角色头像映射 ─────────────────────────────────────────
 
 CHARACTER_IMAGES = {
-    "勇者": "勇者.svg",
-    "精灵": "精灵.svg",
-    "巫师": "巫师.svg",
-    "圣骑士": "圣骑士.svg",
-    "刺客": "刺客.svg",
-    "牧师": "牧师.svg",
-    "机械师": "机械师.svg",
-    "亡灵法师": "亡灵法师.svg",
-    "炼金术士": "炼金术士.svg",
+    "无畏锋刃": "勇者.svg",
+    "共鸣之风": "精灵.svg",
+    "灼疫使者": "巫师.svg",
+    "裁决之盾": "圣骑士.svg",
+    "血色暗影": "刺客.svg",
+    "棘光圣者": "牧师.svg",
+    "福音齿轮": "机械师.svg",
+    "黑血祭师": "亡灵法师.svg",
+    "蚀毒秘使": "炼金术士.svg",
     "哥布林": "哥布林.svg",
     "史莱姆": "史莱姆.svg",
     "火焰领主": "火焰领主.svg",
@@ -208,6 +209,34 @@ def leave_shop():
         "error": result.get("error"),
         "state": _get_state(),
     })
+
+
+@app.route('/api/restart-stage', methods=['POST'])
+def restart_stage():
+    """重新开始当前关卡（仅战斗节点）"""
+    global current_level
+    if current_level is None:
+        return jsonify({"success": False, "error": "没有进行中的关卡"}), 400
+    result = current_level.restart_stage()
+    return jsonify({
+        "success": result["success"],
+        "error": result.get("error"),
+        "state": _get_state(),
+    })
+
+
+# ── 图鉴/统计API ──────────────────────────────────
+
+@app.route('/api/collection', methods=['GET'])
+def get_collection():
+    """获取图鉴数据"""
+    return jsonify({"success": True, "data": collection.get_collection()})
+
+
+@app.route('/api/unlock-info', methods=['GET'])
+def get_unlock_info():
+    """获取解锁信息"""
+    return jsonify({"success": True, "data": collection.get_unlocked_info()})
 
 
 # ── 游戏API: 自定义模式 ──────────────────────────────────

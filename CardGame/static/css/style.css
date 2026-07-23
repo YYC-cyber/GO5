@@ -2,6 +2,11 @@
    卡牌对决 - 暗黑主题UI (优化版)
    ====================================================== */
 
+/* 展示字体 */
+.menu-title, .menu-logo, .mode-card-title, .modal-title {
+    font-family: 'Noto Serif SC', 'STSong', 'SimSun', 'Songti SC', serif;
+}
+
 :root {
     --bg-dark: #0a0e14;
     --bg-panel: #131820;
@@ -34,6 +39,12 @@
     --btn-cancel-hover: #805ad5;
     --btn-danger: #c53030;
     --btn-danger-hover: #e53e3e;
+    --route-combat: #e53e3e;
+    --route-elite: #f6c940;
+    --route-event: #63b3ed;
+    --route-campfire: #38a169;
+    --route-shop: #b794f4;
+    --route-boss: #1a1a2e;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -45,6 +56,56 @@ body {
     overflow: hidden;
     height: 100vh;
     user-select: none;
+}
+
+/* ── 低血量暗角 ── */
+.low-hp-vignette {
+    position: fixed; inset: 0; z-index: 500;
+    pointer-events: none;
+    transition: opacity 0.6s;
+}
+.low-hp-vignette.hidden { opacity: 0; }
+.low-hp-vignette.warning {
+    opacity: 1;
+    box-shadow: inset 0 0 120px 40px rgba(229,62,62,0.18);
+}
+.low-hp-vignette.danger {
+    opacity: 1;
+    box-shadow: inset 0 0 180px 80px rgba(229,62,62,0.3);
+    animation: vignettePulse 1.2s ease-in-out infinite;
+}
+@keyframes vignettePulse {
+    0%, 100% { box-shadow: inset 0 0 180px 80px rgba(229,62,62,0.3); }
+    50% { box-shadow: inset 0 0 200px 100px rgba(229,62,62,0.45); }
+}
+
+/* ── 页面过渡动画 ── */
+.game-container {
+    transition: opacity 0.3s ease-out, filter 0.3s ease-out;
+}
+.game-container.trans-out {
+    opacity: 0.3; filter: blur(4px);
+}
+.modal-overlay {
+    animation: pageIn 0.35s ease-out;
+}
+.modal-overlay.trans-out {
+    animation: pageOut 0.25s ease-in forwards;
+}
+@keyframes pageIn {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes pageOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.97); }
+}
+.step-panel.active {
+    animation: stepIn 0.3s ease-out;
+}
+@keyframes stepIn {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
 }
 
 /* ======================================================
@@ -64,15 +125,7 @@ body {
    分支路线图
    ====================================================== */
 .stage-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 50px;
-    padding: 7px 10px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: rgba(19,24,32,.92);
-    flex-shrink: 0;
+    display: none !important; /* 被小地图图标取代 */
 }
 .stage-map {
     display: flex;
@@ -132,6 +185,23 @@ body {
     border-color: var(--blue);
     color: var(--blue);
 }
+/* 地图节点颜色编码 */
+.map-node.type-combat { border-color: rgba(229,62,62,0.5); color: var(--route-combat); }
+.map-node.type-elite { border-color: rgba(246,201,64,0.5); color: var(--route-elite); }
+.map-node.type-event { border-color: rgba(99,179,237,0.5); color: var(--route-event); }
+.map-node.type-campfire { border-color: rgba(56,161,105,0.5); color: var(--route-campfire); }
+.map-node.type-shop { border-color: rgba(183,148,244,0.5); color: var(--route-shop); }
+.map-node.type-boss { border-color: rgba(200,40,40,0.7); color: #e53e3e; }
+.map-node:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-panel); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 8px;
+    font-size: 10px; white-space: nowrap; z-index: 10;
+    pointer-events: none;
+}
 .stage-label {
     color: var(--gold);
     font-weight: 900;
@@ -150,134 +220,216 @@ body {
 }
 
 /* 独立路线选择界面 */
-.route-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 90;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* ── 小地图图标按钮 ── */
+.map-toggle {
+    position: fixed; top: 12px; right: 12px; z-index: 80;
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg-panel);
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    transition: all 0.25s;
+}
+.map-toggle:hover {
+    border-color: var(--gold-dim);
+    box-shadow: 0 0 20px rgba(246,201,64,0.2);
+    transform: scale(1.08);
+}
+.map-toggle.hidden { display: none; }
+.map-toggle-badge {
+    position: absolute; top: -4px; right: -8px;
+    background: var(--gold); color: #000;
+    font-size: 10px; font-weight: 800;
+    padding: 1px 6px; border-radius: 999px;
+    line-height: 1.4;
+}
+/* ── 地图面板（全屏） ── */
+.map-panel {
+    position: fixed; inset: 0; z-index: 100;
     background:
-        radial-gradient(circle at 20% 20%, rgba(246,201,64,.12), transparent 28%),
-        radial-gradient(circle at 80% 10%, rgba(183,148,244,.14), transparent 26%),
-        rgba(5,7,11,.86);
-    backdrop-filter: blur(5px);
+        radial-gradient(circle at 20% 20%, rgba(246,201,64,.10), transparent 30%),
+        radial-gradient(circle at 80% 10%, rgba(183,148,244,.12), transparent 28%),
+        rgba(5,7,11,.94);
+    backdrop-filter: blur(8px);
+    display: flex; flex-direction: column;
+    animation: mapFadeIn 0.3s ease-out;
 }
-.route-overlay.hidden { display: none; }
-.route-screen {
-    width: min(980px, 94vw);
-    max-height: 90vh;
-    overflow: hidden;
-    border: 1px solid rgba(246,201,64,.28);
-    border-radius: 20px;
-    background: linear-gradient(180deg, #151b27, #0d1118);
-    box-shadow: 0 24px 80px rgba(0,0,0,.6);
-    padding: 22px;
+.map-panel.hidden { display: none; }
+@keyframes mapFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
-.route-header {
-    display: flex;
-    justify-content: space-between;
-    gap: 18px;
-    align-items: flex-start;
-    margin-bottom: 18px;
+.map-panel-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
-.route-kicker {
-    color: var(--gold);
-    font-size: 12px;
-    letter-spacing: 3px;
-    font-weight: 900;
+.map-panel-title {
+    font-size: 24px; font-weight: 800; color: var(--gold);
+    font-family: 'Noto Serif SC', 'STSong', 'SimSun', serif;
 }
-.route-header h2 {
-    font-size: 28px;
-    margin: 4px 0 6px;
-}
-.route-header p {
-    color: var(--text-dim);
-    font-size: 13px;
-}
-.route-current {
-    padding: 8px 12px;
+.map-panel-progress {
+    margin-left: auto;
+    font-size: 14px; font-weight: 700; color: var(--text-dim);
+    background: var(--bg-card); padding: 4px 12px; border-radius: 999px;
     border: 1px solid var(--border);
-    border-radius: 999px;
-    color: var(--text-dim);
-    white-space: nowrap;
 }
+.map-panel-close {
+    width: 36px; height: 36px; border: 1px solid var(--border);
+    border-radius: 50%; background: var(--bg-card); color: var(--text-dim);
+    font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+}
+.map-panel-close:hover {
+    border-color: var(--danger); color: var(--danger);
+    background: rgba(255,100,100,0.08);
+}
+.map-panel-body {
+    flex: 1; overflow:hidden; padding:0;
+    display:flex; flex-direction:column;
+}
+/* ── 可拖拽滚动画布 ── */
+.map-panel-canvas {
+    flex: 1; overflow: auto; position: relative;
+    cursor: grab;
+    background:
+        radial-gradient(circle at 50% 20%, rgba(246,201,64,.06), transparent 50%),
+        radial-gradient(circle at 50% 80%, rgba(183,148,244,.06), transparent 50%),
+        rgba(0,0,0,.2);
+    scroll-behavior: smooth;
+}
+.map-panel-canvas.grabbing { cursor: grabbing; }
+/* 自定义滚动条 */
+.map-panel-canvas::-webkit-scrollbar { width: 6px; height: 6px; }
+.map-panel-canvas::-webkit-scrollbar-track { background: transparent; }
+.map-panel-canvas::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,.12); border-radius: 3px;
+}
+.map-panel-canvas::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); }
+.map-panel-canvas::-webkit-scrollbar-corner { background: transparent; }
+/* SVG 连线层 */
+.map-svg {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none; z-index: 1;
+}
+/* 节点层 */
 .route-map {
-    min-height: 118px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    padding: 16px;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background:
-        linear-gradient(90deg, transparent 0, rgba(246,201,64,.08) 50%, transparent 100%),
-        rgba(255,255,255,.03);
-    overflow-x: auto;
+    position: absolute; top: 0; left: 0; z-index: 2;
+    pointer-events: none;
 }
-.route-layer {
-    min-width: 48px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    align-items: center;
-    position: relative;
+/* 路线选择横栏 */
+.route-choices-bar {
+    flex-shrink: 0; padding: 16px 28px;
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,.3);
+    max-height: 220px; overflow-y: auto;
 }
-.route-layer:not(:last-child)::after {
-    content: "";
-    position: absolute;
-    right: -18px;
-    top: 50%;
-    width: 20px;
-    height: 2px;
-    background: rgba(246,201,64,.28);
+.route-choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
 }
-.route-node {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    border: 1px solid var(--border-light);
+/* 路线选择标题 */
+.route-choices-header {
+    color: var(--gold); font-size: 16px; font-weight: 700;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+}
+/* ── 竖直地图节点 ── */
+.route-map-node {
+    position: absolute; z-index: 3;
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 2px solid var(--border-light);
     background: #111827;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
+    display: flex; align-items: center; justify-content: center;
     color: var(--text-muted);
+    font-size: 20px;
+    pointer-events: auto; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    transform: translate(-50%, -50%);
 }
-.route-node span { font-size: 18px; }
-.route-node em {
-    position: absolute;
-    right: -4px;
-    bottom: -6px;
-    font-size: 10px;
-    font-style: normal;
-    color: var(--text-muted);
+.route-map-node:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+    z-index: 10;
 }
-.route-node.visited {
+.route-map-node .node-layer {
+    position: absolute; bottom: -14px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px; color: var(--text-muted);
+    pointer-events: none;
+}
+/* 节点状态 */
+.route-map-node.visited {
     color: var(--gold);
     border-color: var(--gold-dim);
-    background: rgba(246,201,64,.12);
+    background: rgba(246,201,64,.15);
+    box-shadow: 0 0 6px rgba(246,201,64,.2);
 }
-.route-node.current {
+.route-map-node.current {
     color: #fff;
     border-color: var(--gold);
-    box-shadow: 0 0 16px rgba(246,201,64,.38);
+    box-shadow: 0 0 20px rgba(246,201,64,.5);
+    animation: nodeGlow 2s ease-in-out infinite;
 }
-.route-node.available {
+@keyframes nodeGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(246,201,64,.5); }
+    50% { box-shadow: 0 0 30px rgba(246,201,64,.7); }
+}
+@keyframes route-pulse {
+    from { transform: translate(-50%, -50%) scale(1); }
+    to { transform: translate(-50%, -50%) scale(1.08); }
+}
+@keyframes bossPulse {
+    from { box-shadow: 0 0 8px rgba(200,40,40,0.3); }
+    to { box-shadow: 0 0 20px rgba(200,40,40,0.6); }
+}
+.route-map-node.available {
     color: var(--blue);
     border-color: var(--blue);
     animation: route-pulse 1s ease-in-out infinite alternate;
 }
-@keyframes route-pulse {
-    from { transform: scale(1); }
-    to { transform: scale(1.08); }
+/* 节点颜色编码 */
+.route-map-node.type-combat { border-color: rgba(229,62,62,0.5); color: var(--route-combat); }
+.route-map-node.type-elite { border-color: rgba(246,201,64,0.5); color: var(--route-elite); }
+.route-map-node.type-event { border-color: rgba(99,179,237,0.5); color: var(--route-event); }
+.route-map-node.type-campfire { border-color: rgba(56,161,105,0.5); color: var(--route-campfire); }
+.route-map-node.type-shop { border-color: rgba(183,148,244,0.5); color: var(--route-shop); }
+.route-map-node.type-boss {
+    border-color: rgba(200,40,40,0.7); color: #e53e3e;
+    box-shadow: 0 0 10px rgba(200,40,40,0.3);
 }
-.route-choices {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 14px;
-    margin-top: 18px;
+.route-map-node.type-boss.current {
+    animation: bossPulse 1s ease-in-out infinite alternate;
+}
+/* 节点悬停tooltip */
+.route-map-node:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 8px); left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-panel); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 10px;
+    font-size: 11px; white-space: nowrap; z-index: 10;
+    pointer-events: none;
+}
+/* 路线卡片增强 */
+.route-enemies {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    margin-top: 4px;
+}
+.route-enemies span {
+    font-size: 11px; padding: 2px 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-dim);
+}
+.route-enemies span small {
+    margin-left: 4px; color: var(--hp-red);
 }
 .route-card {
     border: 1px solid var(--border);
@@ -327,14 +479,24 @@ body {
     gap: 6px;
     flex-wrap: wrap;
     margin-bottom: 9px;
-}
-.route-meta span {
+}.route-meta span {
     font-size: 11px;
     color: var(--gold);
     border: 1px solid rgba(246,201,64,.22);
     background: rgba(246,201,64,.08);
     border-radius: 999px;
     padding: 3px 8px;
+}
+/* 路线卡片颜色编码 */
+.route-card.type-combat { border-left: 3px solid var(--route-combat); background: linear-gradient(135deg, rgba(229,62,62,.08), var(--bg-card)); }
+.route-card.type-elite { border-left: 3px solid var(--route-elite); background: linear-gradient(135deg, rgba(246,201,64,.08), var(--bg-card)); }
+.route-card.type-event { border-left: 3px solid var(--route-event); background: linear-gradient(135deg, rgba(99,179,237,.08), var(--bg-card)); }
+.route-card.type-campfire { border-left: 3px solid var(--route-campfire); background: linear-gradient(135deg, rgba(56,161,105,.08), var(--bg-card)); }
+.route-card.type-shop { border-left: 3px solid var(--route-shop); background: linear-gradient(135deg, rgba(183,148,244,.08), var(--bg-card)); }
+.route-card.type-boss {
+    border-left: 3px solid #e53e3e;
+    background: linear-gradient(135deg, rgba(200,40,40,.12), var(--bg-card));
+    box-shadow: 0 0 12px rgba(200,40,40,0.15);
 }
 .route-enemies {
     display: flex;
@@ -518,6 +680,16 @@ body {
     box-shadow: 0 0 18px rgba(246,201,64,.35);
 }
 .enemy-card.dead .portrait { opacity: .5; border-color: var(--text-muted); }
+/* 拖放高亮 */
+.enemy-card.drag-over {
+    border-color: var(--gold) !important;
+    box-shadow: 0 0 24px rgba(246,201,64,0.45), 0 0 60px rgba(246,201,64,0.15) !important;
+    transform: scale(1.04);
+}
+.enemy-card.drag-over .portrait {
+    border-color: #fff;
+    box-shadow: 0 0 18px rgba(246,201,64,.35);
+}
 .portrait img { width:100%; height:100%; object-fit:cover; display:block; }
 
 .enemy-name {
@@ -572,14 +744,101 @@ body {
 .buff-vul { background:rgba(246,201,64,.15);  color:var(--gold); }
 .buff-crs { background:rgba(76,29,149,.22); color:#c4b5fd; }
 
-/* 意图 */
+/* 意图 - 气泡样式 */
 .intent {
-    margin-top:6px; font-size:12px; font-weight:600;
-    padding:3px 10px; border-radius:6px; display:inline-block;
+    margin-top:8px; font-size:13px; font-weight:700;
+    padding:5px 14px; border-radius:20px; display:inline-block;
+    position: relative;
+    animation: intentPulse 2s ease-in-out infinite;
 }
-.intent-攻击 { background:rgba(229,62,62,.15); color:var(--hp-red); }
-.intent-防御 { background:rgba(49,130,206,.15); color:var(--blue); }
-.intent-强化 { background:rgba(56,161,105,.15); color:var(--hp-green); }
+.intent::before {
+    content: '';
+    position: absolute; bottom: -5px; left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+}
+.intent-攻击 {
+    background: rgba(229,62,62,0.2); color: var(--hp-red);
+    border: 1px solid rgba(229,62,62,0.4);
+    box-shadow: 0 0 12px rgba(229,62,62,0.15);
+}
+.intent-攻击::before { border-top: 6px solid rgba(229,62,62,0.35); }
+.intent-防御 {
+    background: rgba(49,130,206,0.2); color: var(--blue);
+    border: 1px solid rgba(49,130,206,0.4);
+    box-shadow: 0 0 12px rgba(49,130,206,0.15);
+}
+.intent-防御::before { border-top: 6px solid rgba(49,130,206,0.35); }
+.intent-强化 {
+    background: rgba(56,161,105,0.2); color: var(--hp-green);
+    border: 1px solid rgba(56,161,105,0.4);
+    box-shadow: 0 0 12px rgba(56,161,105,0.15);
+}
+.intent-强化::before { border-top: 6px solid rgba(56,161,105,0.35); }
+@keyframes intentPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+}
+
+/* 战斗区域分隔线 */
+.battle-sep {
+    height: 1px; margin: 0 20px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    opacity: 0.4;
+}
+/* ── 卡牌悬停 Tooltip ── */
+.card-tooltip {
+    position: fixed; z-index: 500;
+    background: var(--bg-panel);
+    border: 1px solid var(--gold-dim);
+    border-radius: 12px;
+    padding: 14px 18px;
+    max-width: 260px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    pointer-events: none;
+    animation: ttIn 0.15s ease-out;
+}
+.card-tooltip.hidden { display: none; }
+@keyframes ttIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.tt-name-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px;
+}
+.tt-name {
+    font-size: 16px; font-weight: 700; color: var(--text);
+}
+.tt-cost {
+    font-size: 14px; font-weight: 700;
+    background: var(--gold); color: #000;
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+}
+.tt-type {
+    font-size: 12px; font-weight: 600;
+    padding: 2px 8px; border-radius: 4px;
+    display: inline-block; margin-bottom: 8px;
+}
+.tt-type.type-攻击 { background: rgba(229,62,62,0.2); color: var(--card-atk); }
+.tt-type.type-技能 { background: rgba(49,130,206,0.2); color: var(--card-skl); }
+.tt-type.type-能力 { background: rgba(128,90,213,0.2); color: var(--card-pwr); }
+.tt-type.type-诅咒 { background: rgba(76,29,149,0.2); color: #c4b5fd; }
+.tt-desc {
+    font-size: 13px; color: var(--text-dim);
+    line-height: 1.5; margin-bottom: 6px;
+}
+.tt-keywords {
+    font-size: 11px; color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    padding-top: 6px; line-height: 1.5;
+}
+.tt-keywords span {
+    color: var(--gold);
+}
 
 .target-prompt {
     position:absolute; top:-10px; left:50%;
@@ -681,7 +940,12 @@ body {
     box-shadow: 0 0 30px rgba(246,201,64,.3);
     z-index: 15;
 }
-
+/* 拖拽状态 */
+.card.dragging {
+    opacity: 0.5;
+    transform: scale(0.85);
+    cursor: grabbing;
+}
 /* 费用球 */
 .card-cost {
     position: absolute; top: -8px; left: -8px;
@@ -960,6 +1224,235 @@ body {
     padding: 12px 32px;
     font-size: 16px;
 }
+/* ── 失败弹窗 ── */
+.defeat-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 220;
+}
+.defeat-overlay.hidden { display: none; }
+.defeat-screen {
+    background: var(--bg-panel);
+    border: 1px solid var(--danger);
+    border-radius: 20px;
+    padding: 48px 40px;
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+    animation: eventIn 0.4s ease-out;
+}
+.defeat-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    animation: eventBounce 0.6s ease-out;
+}
+.defeat-title {
+    color: var(--danger);
+    font-size: 24px;
+    margin: 0 0 12px;
+}
+.defeat-message {
+    color: var(--text-dim);
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0 0 28px;
+}
+.defeat-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.defeat-actions .btn {
+    padding: 12px 24px;
+    font-size: 16px;
+}
+/* ── 图鉴弹窗 ── */
+.collection-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.88);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 220;
+}
+.collection-overlay.hidden { display: none; }
+.collection-screen {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    max-width: 700px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    animation: eventIn 0.3s ease-out;
+}
+.collection-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+}
+.collection-header h2 {
+    color: var(--gold);
+    font-size: 24px;
+    margin: 0;
+}
+.collection-close {
+    background: none; border: none;
+    color: var(--text-dim); font-size: 22px;
+    cursor: pointer; padding: 4px 8px;
+    border-radius: 6px;
+}
+.collection-close:hover {
+    color: var(--danger);
+    background: rgba(255,100,100,0.1);
+}
+.collection-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+}
+.col-tab {
+    padding: 10px 20px;
+    background: none; border: none;
+    color: var(--text-dim); font-size: 14px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.col-tab:hover { color: var(--text); }
+.col-tab.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+}
+.col-progress {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 14px;
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border-radius: 8px;
+}
+.col-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+}
+.col-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+}
+.col-item-hidden {
+    opacity: 0.35;
+    filter: grayscale(1);
+}
+.col-item-icon { font-size: 16px; flex-shrink: 0; }
+.col-item-name { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.col-item-hidden .col-item-name { color: var(--text-dim); }
+
+.col-stats {
+    display: flex; flex-direction: column; gap: 12px;
+}
+.col-stat-row {
+    display: flex; justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+.col-stat-label { color: var(--text-dim); font-size: 14px; }
+.col-stat-val { color: var(--gold); font-size: 18px; font-weight: 700; }
+.col-table {
+    width: 100%; border-collapse: collapse;
+    margin-top: 8px;
+}
+.col-table th, .col-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+.col-table th { color: var(--text-dim); font-weight: 600; }
+.col-table td { color: var(--text); }
+/* ── Toast 通知 ── */
+.toast-container {
+    position: fixed; top: 20px; right: 20px;
+    z-index: 400;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none;
+}
+.toast-item {
+    padding: 10px 20px;
+    background: var(--bg-panel);
+    border: 1px solid var(--gold-dim);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 14px;
+    max-width: 340px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    animation: toastIn 0.3s ease-out;
+    pointer-events: auto;
+}
+.toast-item.toast-error {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+.toast-item.toast-success {
+    border-color: var(--hp-green);
+    color: var(--hp-green);
+}
+@keyframes toastIn {
+    from { transform: translateX(40px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes toastOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(40px); opacity: 0; }
+}
+/* ── 确认弹窗 ── */
+.confirm-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 350;
+}
+.confirm-overlay.hidden { display: none; }
+.confirm-screen {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 36px;
+    max-width: 360px;
+    width: 90%;
+    text-align: center;
+    animation: eventIn 0.25s ease-out;
+}
+.confirm-message {
+    color: var(--text);
+    font-size: 16px;
+    margin: 0 0 24px;
+    line-height: 1.5;
+}
+.confirm-actions {
+    display: flex; gap: 12px; justify-content: center;
+}
+.confirm-actions .btn {
+    padding: 10px 24px;
+    font-size: 14px;
+}
+/* ── 按钮禁用统一 ── */
+.btn:disabled,
+.btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+    filter: grayscale(0.3);
+}
 /* ── 能量溢出 ── */
 .energy-orbs {
     min-width: 74px; height: 32px;
@@ -1064,6 +1557,127 @@ body {
 .btn-ghost:hover:not(:disabled) { background:var(--bg-hover); color:var(--text); }
 
 /* ======================================================
+   主菜单
+   ====================================================== */
+.menu-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(ellipse at center, #0f1620 0%, #070b10 70%);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 300; flex-direction: column;
+    overflow: hidden;
+}
+.menu-overlay.hidden { display: none; }
+.menu-bg-pattern {
+    position: absolute; inset: 0;
+    background-image:
+        radial-gradient(circle at 20% 30%, rgba(246,201,64,0.03) 0%, transparent 50%),
+        radial-gradient(circle at 80% 70%, rgba(246,201,64,0.02) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(100,140,200,0.02) 0%, transparent 60%);
+    pointer-events: none;
+}
+.menu-screen {
+    text-align: center;
+    animation: menuFadeIn 0.6s ease-out;
+    position: relative; z-index: 1;
+}
+@keyframes menuFadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.menu-logo {
+    font-size: 72px;
+    margin-bottom: 4px;
+    animation: menuLogoFloat 3s ease-in-out infinite;
+}
+@keyframes menuLogoFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+.menu-title {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--gold);
+    margin: 0;
+    text-shadow: 0 0 30px rgba(246,201,64,0.3), 0 0 60px rgba(246,201,64,0.1);
+    letter-spacing: 4px;
+}
+.menu-subtitle {
+    color: var(--text-dim);
+    font-size: 16px;
+    margin: 8px 0 0;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+}
+.menu-divider {
+    width: 120px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    margin: 24px auto;
+}
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 300px;
+    margin: 0 auto;
+}
+.menu-btn {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.25s;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+}
+.menu-btn::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(246,201,64,0.06) 0%, transparent 70%);
+    opacity: 0; transition: opacity 0.3s;
+}
+.menu-btn:hover::before { opacity: 1; }
+.menu-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--gold-dim);
+    transform: translateX(6px);
+    box-shadow: 0 0 20px rgba(246,201,64,0.1);
+}
+.menu-btn:active {
+    transform: translateX(3px);
+}
+.menu-btn-icon {
+    font-size: 24px; flex-shrink: 0; width: 32px; text-align: center;
+}
+.menu-btn-text {
+    font-size: 17px; font-weight: 600;
+}
+.menu-btn-desc {
+    font-size: 11px; color: var(--text-muted);
+    margin-left: auto;
+}
+.menu-btn-danger {
+    border-color: rgba(255,100,100,0.2);
+    color: var(--text-dim);
+}
+.menu-btn-danger:hover {
+    background: rgba(255,100,100,0.08);
+    border-color: var(--danger);
+    color: var(--danger);
+    box-shadow: 0 0 20px rgba(255,100,100,0.1);
+}
+.menu-footer {
+    margin-top: 32px;
+    color: var(--text-dim);
+    font-size: 12px;
+    opacity: 0.5;
+}
+
+/* ======================================================
    模式选择遮罩
    ====================================================== */
 .modal-overlay {
@@ -1139,29 +1753,131 @@ body {
 .char-option .char-desc { font-size:10px; color:var(--text-dim); }
 .char-option .char-deck { font-size:9px; color:var(--text-muted); margin-top:2px; line-height:1.2; }
 .char-option .char-skill { font-size:9px; color:var(--gold); margin-top:1px; line-height:1.2; }
+.char-option .char-passive { font-size:9px; color:var(--blue); margin-top:1px; line-height:1.2; }
 
-/* ── 三栏Tab切换 ── */
-.modal-wide { max-width: 760px; }
-
-.tab-bar {
-    display: flex; gap: 4px;
-    margin-bottom: 14px;
-    background: var(--bg-dark);
-    border-radius: 10px;
-    padding: 3px;
+/* ── 模式卡片选择 ── */
+.mode-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 16px 0;
 }
-.tab-btn {
-    flex:1; padding:8px 4px; border:none; border-radius:8px;
-    background:transparent; color:var(--text-dim); font-size:13px; font-weight:600;
-    cursor:pointer; transition:all .15s;
+.mode-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 18px;
+    display: flex; flex-direction: column;
+    transition: all 0.3s;
 }
-.tab-btn.active { background:var(--bg-hover); color:var(--text); }
-.tab-btn:hover:not(.active) { color:var(--text); }
+.mode-card:hover {
+    border-color: var(--gold-dim);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.mode-card-icon {
+    font-size: 36px; text-align: center; margin-bottom: 8px;
+}
+.mode-card-title {
+    color: var(--gold);
+    font-size: 18px; font-weight: 700;
+    text-align: center; margin-bottom: 4px;
+}
+.mode-card-desc {
+    color: var(--text-dim);
+    font-size: 12px; text-align: center;
+    margin-bottom: 16px;
+    line-height: 1.4;
+}
+.mode-card-options {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-top: auto;
+}
+.mode-btn {
+    padding: 10px 14px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.mode-btn:hover {
+    background: var(--bg-card);
+    border-color: var(--gold-dim);
+    color: var(--gold);
+}
+.mode-btn .mode-desc {
+    font-size: 11px; color: var(--text-muted); font-weight: 400;
+}
+.mode-btn-red {
+    border-color: rgba(255,100,100,0.2);
+}
+.mode-btn-red:hover {
+    border-color: var(--danger); color: var(--danger);
+}
 
+/* ── 自定义模式表单 ── */
+.custom-inline {
+    margin-top: auto;
+}
+.custom-inline .custom-hp-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+}
+.custom-inline .custom-hp-row label {
+    color: var(--text-dim); font-size: 12px; white-space: nowrap;
+}
+.custom-inline .custom-hp-row input {
+    width: 70px; padding: 4px 8px;
+    background: var(--bg-dark); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 13px;
+}
+.custom-inline .custom-enemies {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-bottom: 8px;
+}
+.custom-inline .custom-enemy-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; margin-bottom: 4px;
+    background: var(--bg-card); border-radius: 8px;
+    border: 1px solid var(--border);
+}
+.custom-inline .custom-enemy-row select {
+    padding:3px 6px; border-radius:5px;
+    border:1px solid var(--border); background:var(--bg-dark); color:var(--text);
+    font-size:13px;
+}
+.custom-inline .custom-enemy-row label {
+    font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:3px;
+}
+.custom-inline .custom-enemy-row input {
+    width: 60px; padding: 3px 6px;
+    background: var(--bg-dark); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font-size: 12px;
+}
+.custom-inline .custom-actions {
+    display: flex; gap: 6px; margin-bottom: 8px;
+}
+.custom-inline .custom-actions .btn {
+    padding: 6px 12px; font-size: 12px;
+}
+.custom-inline .preset-row {
+    display: flex; flex-wrap: wrap; gap: 4px;
+}
+.custom-inline .preset-btn {
+    padding: 4px 8px; font-size: 11px;
+}
+
+/* ── 旧版tab（保留兼容） ── */
+.modal-wide { max-width: 960px; }
+.tab-bar { display: none; }
 .tab-panel { display: none; }
 .tab-panel.active { display: flex; flex-direction: column; gap: 8px; }
 
-/* ── 自定义模式表单 ── */
+/* ── 自定义模式表单(旧) ── */
 .custom-hp-row {
     display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
     font-size: 13px; color: var(--text-dim);
@@ -1307,6 +2023,7 @@ body {
 }
 .skill-btn:disabled { opacity:.4; cursor:not-allowed; transform:translateY(-50%); }
 .skill-btn:active:not(:disabled) { transform:translateY(-50%) scale(.95); }
+.skill-btn.dragging { opacity: 0.5; cursor: grabbing; }
 
 /* ======================================================
    牌堆详情弹窗

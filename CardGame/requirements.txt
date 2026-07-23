@@ -1,1 +1,4 @@
+# 卡牌对决 - Python 依赖
+# 运行仅需 Flask，其余均为 Python 标准库
+
 Flask>=3.0,<4.0

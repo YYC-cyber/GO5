@@ -4,19 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>卡牌对决</title>
-    <link rel="stylesheet" href="/css/style.css?v=18">
+    <link rel="stylesheet" href="/css/style.css?v=31">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- 低血量暗角 -->
+    <div class="low-hp-vignette hidden" id="low-hp-vignette"></div>
 
-<div class="game-container">
+    <div class="game-container">
 
-    <!-- 关卡进度条 -->
-    <div class="stage-info" id="stage-info" style="display:none;"></div>
+    <!-- 小地图图标 -->
+    <button class="map-toggle hidden" id="map-toggle" title="展开地图">🗺️<span class="map-toggle-badge" id="map-toggle-badge"></span></button>
 
     <!-- 敌人区域 -->
     <div class="enemy-area" id="enemy-area">
         <div style="color:var(--text-muted);text-align:center;padding:30px;">🃏 选择模式开始游戏</div>
     </div>
+
+    <div class="battle-sep" id="battle-sep"></div>
 
     <!-- 日志区域 -->
     <div class="log-area" id="log-area">
@@ -46,7 +53,7 @@
         <div class="player-hp-bar">
             <div class="hp-fill" style="width:100%"></div>
         </div>
-        <div class="player-hp-text"><span class="hp-val">80</span><span class="hp-sep">/</span><span class="hp-max-val">80</span></div>
+        <div class="player-hp-text"><span class="hp-val">---</span><span class="hp-sep">/</span><span class="hp-max-val">---</span></div>
     </div>
     <div class="energy-orbs"></div>
     <div class="player-gold" id="player-gold" style="display:none">💰 0</div>
@@ -67,18 +74,18 @@
     <div class="shortcut-bar" id="shortcut-bar">按 [R] 或点击"新游戏"开始</div>
 </div>
 
-<!-- ═════════ 路线选择界面 ═════════ -->
-<div class="route-overlay hidden" id="route-overlay">
-    <div class="route-screen">
-        <div class="route-header">
-            <div>
-                <div class="route-kicker">关卡路线选择</div>
-                <h2>选择下一条路线</h2>
-                <p>每条路线会带来不同敌人组合。选择后会回到战斗页面，并进入对应关卡。</p>
-            </div>
-            <div class="route-current" id="route-current"></div>
-        </div>
+<!-- ═════════ 地图面板（全屏竖直） ═════════ -->
+<div class="map-panel hidden" id="map-panel">
+    <div class="map-panel-header">
+        <div class="map-panel-title">🗺️ 关卡地图</div>
+        <div class="map-panel-progress" id="map-panel-progress"></div>
+        <button class="map-panel-close" id="map-panel-close">✕</button>
+    </div>
+    <div class="map-panel-canvas" id="map-panel-canvas">
+        <svg class="map-svg" id="map-svg"></svg>
         <div class="route-map" id="route-map"></div>
+    </div>
+    <div class="route-choices-bar" id="route-choices-bar">
         <div class="route-choices" id="route-choices"></div>
     </div>
 </div>
@@ -108,6 +115,75 @@
     </div>
 </div>
 
+<!-- ═════════ 失败弹窗 ═════════ -->
+<div class="defeat-overlay hidden" id="defeat-overlay">
+    <div class="defeat-screen">
+        <div class="defeat-icon">💀</div>
+        <h2 class="defeat-title">你被击败了</h2>
+        <p class="defeat-message" id="defeat-message"></p>
+        <div class="defeat-actions">
+            <button class="btn btn-primary" id="defeat-retry-btn">🔄 重试当前关卡</button>
+            <button class="btn btn-primary" id="defeat-restart-btn">🔁 重新开始当前难度</button>
+            <button class="btn btn-secondary" id="defeat-menu-btn">🏠 回到主菜单</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═════════ 主菜单 ═════════ -->
+<div class="menu-overlay" id="main-menu">
+    <div class="menu-bg-pattern"></div>
+    <div class="menu-screen">
+        <div class="menu-logo">🃏</div>
+        <h1 class="menu-title">卡牌对决</h1>
+        <p class="menu-subtitle">Card Battle</p>
+        <div class="menu-divider"></div>
+        <div class="menu-buttons">
+            <button class="menu-btn" id="menu-single">
+                <span class="menu-btn-icon">⚔️</span>
+                <span class="menu-btn-text">单人模式</span>
+                <span class="menu-btn-desc">选择角色，挑战关卡</span>
+            </button>
+            <button class="menu-btn" id="menu-multi">
+                <span class="menu-btn-icon">👥</span>
+                <span class="menu-btn-text">多人模式</span>
+                <span class="menu-btn-desc">即将推出</span>
+            </button>
+            <button class="menu-btn" id="menu-collection">
+                <span class="menu-btn-icon">📖</span>
+                <span class="menu-btn-text">图鉴</span>
+                <span class="menu-btn-desc">查看收集进度</span>
+            </button>
+            <button class="menu-btn" id="menu-settings">
+                <span class="menu-btn-icon">⚙️</span>
+                <span class="menu-btn-text">设置</span>
+                <span class="menu-btn-desc">即将推出</span>
+            </button>
+            <button class="menu-btn menu-btn-danger" id="menu-quit">
+                <span class="menu-btn-icon">🚪</span>
+                <span class="menu-btn-text">关闭游戏</span>
+            </button>
+        </div>
+        <div class="menu-footer">v1.0 · 2026</div>
+    </div>
+</div>
+
+<!-- ═════════ 图鉴弹窗 ═════════ -->
+<div class="collection-overlay hidden" id="collection-overlay">
+    <div class="collection-screen">
+        <div class="collection-header">
+            <h2>📖 图鉴</h2>
+            <button class="collection-close" id="collection-close">✕</button>
+        </div>
+        <div class="collection-tabs">
+            <button class="col-tab active" data-ctab="cards">🃏 卡牌</button>
+            <button class="col-tab" data-ctab="enemies">👾 敌人</button>
+            <button class="col-tab" data-ctab="relics">🏺 遗物</button>
+            <button class="col-tab" data-ctab="stats">📊 统计</button>
+        </div>
+        <div class="collection-content" id="collection-content"></div>
+    </div>
+</div>
+
 <!-- ═════════ 角色+模式选择弹窗 ═════════ -->
 <div class="modal-overlay" id="mode-modal">
     <div class="modal modal-wide">
@@ -125,66 +201,66 @@
             <div class="char-select" id="char-select">
                 <div class="char-option active" data-char="warrior">
                     <span class="char-icon">⚔️</span>
-                    <span class="char-name">勇者</span>
+                    <span class="char-name">无畏锋刃</span>
                     <span class="char-hp">❤️80</span>
-                    <span class="char-desc">攻守平衡的战士</span>
-                    <div class="char-deck">4猛击+2重击+狂怒+战斗怒吼</div><div class="char-skill">✨技能:净化(2费)消除全部负面状态</div>
+                    <span class="char-desc">攻守平衡，力量成长</span>
+                    <div class="char-deck">4猛击+2重击+狂怒+战斗怒吼+削弱打击+小额治疗</div><div class="char-skill">✨主动:净化(1费)清除全部负面状态</div><div class="char-passive">被动:战后回复5点生命</div>
                 </div>
                 <div class="char-option" data-char="elf">
                     <span class="char-icon">🏹</span>
-                    <span class="char-name">精灵</span>
+                    <span class="char-name">共鸣之风</span>
                     <span class="char-hp">❤️65</span>
-                    <span class="char-desc">敏捷灵巧，多重攻击</span>
-                    <div class="char-deck">2双重打击+2连击+旋风斩+速攻</div><div class="char-skill">🔄技能:回响(2费)下一张牌释放两次</div>
+                    <span class="char-desc">连击、多段攻击、抽牌</span>
+                    <div class="char-deck">2双重打击+2连击+旋风斩+速攻+肾上腺素</div><div class="char-skill">🔄主动:回响(2费)下一张牌不消耗费用并释放两次</div><div class="char-passive">被动:每10段伤害抽1张牌</div>
                 </div>
                 <div class="char-option" data-char="wizard">
                     <span class="char-icon">🔮</span>
-                    <span class="char-name">巫师</span>
+                    <span class="char-name">灼疫使者</span>
                     <span class="char-hp">❤️55</span>
-                    <span class="char-desc">元素魔法，状态异常</span>
-                    <div class="char-deck">2元素融合+毒烧伤+催化剂</div><div class="char-skill">💥技能:元素爆发(2费)群体5伤+2毒+2烧伤</div>
+                    <span class="char-desc">中毒、烧伤、状态爆发</span>
+                    <div class="char-deck">2元素融合+毒烧伤+催化剂+毒云+火球</div><div class="char-skill">💥主动:元素爆发(2费)群体伤害+毒+烧伤</div><div class="char-passive">被动:中毒和烧伤伤害提高</div>
                 </div>
                 <div class="char-option" data-char="paladin">
                     <span class="char-icon">🛡️</span>
-                    <span class="char-name">圣骑士</span>
+                    <span class="char-name">裁决之盾</span>
                     <span class="char-hp">❤️90</span>
-                    <span class="char-desc">坚不可摧的堡垒</span>
-                    <div class="char-deck">4防御+2圣盾打击+铁壁+反击</div><div class="char-skill">🛡️被动:每轮自动+10盾,护盾保留</div>
+                    <span class="char-desc">护盾、防御、圣盾打击</span>
+                    <div class="char-deck">4防御+2圣盾打击+铁壁+反击+堡垒+回春</div><div class="char-skill">🛡️主动:圣盾(1费)下回合不消除格挡</div><div class="char-passive">被动:每回合开始获6点格挡</div>
                 </div>
                 <div class="char-option" data-char="assassin">
                     <span class="char-icon">🗡️</span>
-                    <span class="char-name">刺客</span>
+                    <span class="char-name">血色暗影</span>
                     <span class="char-hp">❤️60</span>
-                    <span class="char-desc">连击流血，低费爆发</span>
-                    <div class="char-deck">背刺+割裂+影遁+连击</div><div class="char-skill">🗡️技能:暗影爆发(1费)+能量+力量</div>
+                    <span class="char-desc">流血、弃牌、低费爆发</span>
+                    <div class="char-deck">3背刺+3割裂+2影遁+2速攻+2连击</div><div class="char-skill">🗡️主动:暗影爆发(1费)获得费用和临时力量</div><div class="char-passive">被动:主动丢弃手牌视为免费打出</div>
                 </div>
                 <div class="char-option" data-char="priest">
                     <span class="char-icon">🙏</span>
-                    <span class="char-name">牧师</span>
+                    <span class="char-name">棘光圣者</span>
                     <span class="char-hp">❤️75</span>
-                    <span class="char-desc">治疗净化，祝福反伤</span>
-                    <div class="char-deck">圣光+净化+祝福+荆棘</div><div class="char-skill">🙏技能:神圣新星(2费)治疗+群伤</div>
+                    <span class="char-desc">治疗、祝福、反伤</span>
+                    <div class="char-deck">3圣光+2净化+2祝福+荆棘光环+3防御</div><div class="char-skill">🙏主动:神圣新星(2费)治疗+群伤</div><div class="char-passive">被动:治疗时对随机敌人造成一半伤害</div>
                 </div>
                 <div class="char-option" data-char="mechanist">
                     <span class="char-icon">⚙️</span>
-                    <span class="char-name">机械师</span>
+                    <span class="char-name">福音齿轮</span>
                     <span class="char-hp">❤️70</span>
-                    <span class="char-desc">炮台电池，模块成长</span>
-                    <div class="char-deck">炮台+电池+模块升级</div><div class="char-skill">⚙️技能:超频(1费)强化炮台</div>
+                    <span class="char-desc">炮台、电池、模块成长</span>
+                    <div class="char-deck">2炮台+2电池+2模块升级+3防御</div><div class="char-skill">⚙️主动:超频(1费)强化炮台获得能量</div><div class="char-passive">被动:回合开始创建/成长炮台</div>
                 </div>
                 <div class="char-option" data-char="necromancer">
                     <span class="char-icon">💀</span>
-                    <span class="char-name">亡灵法师</span>
+                    <span class="char-name">黑血祭师</span>
                     <span class="char-hp">❤️58</span>
-                    <span class="char-desc">牺牲生命，召唤诅咒</span>
-                    <div class="char-deck">诅咒箭+骷髅+生命汲取</div><div class="char-skill">💀技能:亡者复苏(2费)召唤+回血</div>
+                    <span class="char-desc">牺牲生命、骷髅、诅咒</span>
+                    <div class="char-deck">3诅咒箭+2骷髅+2生命汲取+2吸血打击</div><div class="char-skill">💀主动:亡者复苏(1费)召唤枯骨或增加最大生命</div><div class="char-passive">被动:受伤优先由枯骨承担</div>
                 </div>
                 <div class="char-option" data-char="alchemist">
                     <span class="char-icon">⚗️</span>
-                    <span class="char-name">炼金术士</span>
+                    <span class="char-name">蚀毒秘使</span>
                     <span class="char-hp">❤️68</span>
-                    <span class="char-desc">药水毒素，状态转换</span>
-                    <div class="char-deck">毒液瓶+突变+状态转换</div><div class="char-skill">⚗️技能:万能药剂(2费)随机强化+群毒</div>
+                    <span class="char-desc">毒、药剂、随机强化、状态转换</span>
+                    <div class="char-deck">3毒液瓶+2突变+2状态转换+2毒打击</div><div class="char-skill">⚗️主动:万能药剂(1费)随机强化+叠毒</div><div class="char-passive">被动:HP&lt;50%中毒回血, &gt;50%中毒翻倍</div>
                 </div>
             </div>
             <button class="btn btn-primary char-next-btn" id="char-next">确认角色 → 选择模式</button>
@@ -194,51 +270,57 @@
         <div class="step-panel" id="step-mode">
             <p class="modal-subtitle" id="mode-subtitle">⚔️ 勇者 · 选择战斗模式</p>
 
-            <div class="tab-bar">
-                <button class="tab-btn active" data-tab="classic">⚔️ 经典模式</button>
-                <button class="tab-btn" data-tab="level">🗺️ 关卡模式</button>
-                <button class="tab-btn" data-tab="custom">🎨 自定义模式</button>
-            </div>
-
-            <!-- 经典模式 -->
-            <div class="tab-panel active" id="tab-classic">
-                <div class="modal-section-title">单场战斗 · 快速开始</div>
-                <button class="btn btn-primary" id="mode-normal">普通<div class="mode-desc">哥布林+史莱姆</div></button>
-                <button class="btn btn-primary" id="mode-elite">🔥精英<div class="mode-desc">火焰领主+寒冰法师</div></button>
-                <button class="btn btn-danger" id="mode-boss">👑Boss<div class="mode-desc">暗影领主挑战</div></button>
-            </div>
-
-            <!-- 关卡模式 -->
-            <div class="tab-panel" id="tab-level">
-                <div class="modal-section-title">连续10关 · 进度继承</div>
-                <button class="btn btn-primary" id="mode-level">🌟简单<div class="mode-desc">10关适合新手</div></button>
-                <button class="btn btn-primary" id="mode-level-hard">🔥困难<div class="mode-desc">强化敌人</div></button>
-                <button class="btn btn-danger" id="mode-level-hell">💀地狱<div class="mode-desc">精英成群</div></button>
-            </div>
-
-            <!-- 自定义模式 -->
-            <div class="tab-panel" id="tab-custom">
-                <div class="modal-section-title">自定义敌人数值</div>
-                <div class="custom-hp-row">
-                    <label>玩家 HP</label>
-                    <input type="number" id="custom-player-hp" value="80" min="10" max="999">
+            <div class="mode-cards">
+                <!-- 经典模式 -->
+                <div class="mode-card" data-mode="classic">
+                    <div class="mode-card-icon">⚔️</div>
+                    <div class="mode-card-title">经典模式</div>
+                    <div class="mode-card-desc">单场独立战斗，快速体验角色</div>
+                    <div class="mode-card-options">
+                        <button class="mode-btn" id="mode-normal">普通<div class="mode-desc">哥布林+史莱姆</div></button>
+                        <button class="mode-btn" id="mode-elite">🔥精英<div class="mode-desc">火焰领主+寒冰法师</div></button>
+                        <button class="mode-btn mode-btn-red" id="mode-boss">👑Boss<div class="mode-desc">暗影领主挑战</div></button>
+                    </div>
                 </div>
-                <div class="custom-enemies" id="custom-enemies"></div>
-                <div class="custom-actions">
-                    <button class="btn btn-secondary" id="custom-add-enemy">＋添加敌人</button>
-                    <button class="btn btn-primary" id="custom-start">⚔️开始战斗</button>
+
+                <!-- 关卡模式 -->
+                <div class="mode-card" data-mode="level">
+                    <div class="mode-card-icon">🗺️</div>
+                    <div class="mode-card-title">关卡模式</div>
+                    <div class="mode-card-desc">30层分支挑战，奖励成长</div>
+                    <div class="mode-card-options">
+                        <button class="mode-btn" id="mode-level">🌟简单<div class="mode-desc">30关适合新手</div></button>
+                        <button class="mode-btn" id="mode-level-hard">🔥困难<div class="mode-desc">强化敌人</div></button>
+                        <button class="mode-btn mode-btn-red" id="mode-level-hell">💀地狱<div class="mode-desc">精英成群</div></button>
+                    </div>
                 </div>
-                <div class="modal-section-title" style="margin-top:8px;font-size:11px;">📋预设</div>
-                <div class="preset-row">
-                    <button class="btn btn-ghost preset-btn" data-e='[{"n":"哥布林","hp":30,"d":6}]'>哥布林</button>
-                    <button class="btn btn-ghost preset-btn" data-e='[{"n":"火焰领主","hp":55,"d":9}]'>火焰领主</button>
-                    <button class="btn btn-ghost preset-btn" data-e='[{"n":"史莱姆","hp":40,"d":5},{"n":"哥布林","hp":30,"d":6}]'>双杂兵</button>
-                    <button class="btn btn-ghost preset-btn" data-e='[{"n":"暗影领主","hp":100,"d":14}]'>Boss</button>
-                    <button class="btn btn-ghost preset-btn" data-e='[{"n":"哥布林","hp":30,"d":6},{"n":"史莱姆","hp":40,"d":5},{"n":"火焰领主","hp":55,"d":9}]'>精英组</button>
-                    <button class="btn btn-ghost preset-btn" data-e='[{"n":"毒沼史莱姆","hp":45,"d":7},{"n":"熔岩犬","hp":60,"d":10}]'>异常组</button>
-                    <button class="btn btn-ghost preset-btn" data-e='[{"n":"镜像怪","hp":65,"d":10},{"n":"护卫队长","hp":70,"d":8},{"n":"诅咒法师","hp":70,"d":11}]'>机制组</button>
+
+                <!-- 自定义模式 -->
+                <div class="mode-card" data-mode="custom">
+                    <div class="mode-card-icon">🛠️</div>
+                    <div class="mode-card-title">自定义模式</div>
+                    <div class="mode-card-desc">自由配置敌人，测试验证</div>
+                    <div class="custom-inline">
+                        <div class="custom-hp-row">
+                            <label>玩家 HP</label>
+                            <input type="number" id="custom-player-hp" value="80" min="10" max="999">
+                        </div>
+                        <div class="custom-enemies" id="custom-enemies"></div>
+                        <div class="custom-actions">
+                            <button class="btn btn-secondary" id="custom-add-enemy">＋添加敌人</button>
+                            <button class="btn btn-primary" id="custom-start">⚔️开始战斗</button>
+                        </div>
+                        <div class="preset-row">
+                            <button class="btn btn-ghost preset-btn" data-e='[{"n":"哥布林","hp":30,"d":6}]'>哥布林</button>
+                            <button class="btn btn-ghost preset-btn" data-e='[{"n":"火焰领主","hp":55,"d":9}]'>火焰领主</button>
+                            <button class="btn btn-ghost preset-btn" data-e='[{"n":"史莱姆","hp":40,"d":5},{"n":"哥布林","hp":30,"d":6}]'>双杂兵</button>
+                            <button class="btn btn-ghost preset-btn" data-e='[{"n":"暗影领主","hp":100,"d":14}]'>Boss</button>
+                            <button class="btn btn-ghost preset-btn" data-e='[{"n":"哥布林","hp":30,"d":6},{"n":"史莱姆","hp":40,"d":5},{"n":"火焰领主","hp":55,"d":9}]'>精英组</button>
+                            <button class="btn btn-ghost preset-btn" data-e='[{"n":"毒沼史莱姆","hp":45,"d":7},{"n":"熔岩犬","hp":60,"d":10}]'>异常组</button>
+                            <button class="btn btn-ghost preset-btn" data-e='[{"n":"镜像怪","hp":65,"d":10},{"n":"护卫队长","hp":70,"d":8},{"n":"诅咒法师","hp":70,"d":11}]'>机制组</button>
+                        </div>
+                    </div>
                 </div>
-                <div class="back-link" id="custom-back">←返回选择角色</div>
             </div>
 
             <div class="back-link" id="mode-back">←返回选择角色</div>
@@ -267,6 +349,31 @@
     </div>
 </div>
 
-<script src="/js/game.js?v=18"></script>
+<!-- ═════════ Toast 通知 ═════════ -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ═════════ 确认弹窗 ═════════ -->
+<div class="confirm-overlay hidden" id="confirm-overlay">
+    <div class="confirm-screen">
+        <p class="confirm-message" id="confirm-message"></p>
+        <div class="confirm-actions">
+            <button class="btn btn-primary" id="confirm-ok">确定</button>
+            <button class="btn btn-secondary" id="confirm-cancel">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═════════ 卡牌Tooltip ═════════ -->
+<div class="card-tooltip hidden" id="card-tooltip">
+    <div class="tt-name-row">
+        <span class="tt-name" id="tt-name"></span>
+        <span class="tt-cost" id="tt-cost"></span>
+    </div>
+    <div class="tt-type" id="tt-type"></div>
+    <div class="tt-desc" id="tt-desc"></div>
+    <div class="tt-keywords" id="tt-keywords"></div>
+</div>
+
+<script src="/js/game.js?v=32"></script>
 </body>
 </html>

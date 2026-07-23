@@ -12,6 +12,7 @@ from typing import List, Optional, Dict, Any
 from src.core.player import Player
 from src.core.enemy import Enemy
 from src.games.web_battle import WebBattle
+from src import collection
 
 
 # ── 30关名称池 ──────────────────────────────────────────
@@ -37,7 +38,7 @@ ENEMY_POOL = [
     [("火焰领主", 60, 11), ("史莱姆", 50, 8)],
     [("镜像怪", 65, 10), ("寒冰法师", 48, 9)],
     [("诅咒法师", 65, 11), ("毒沼史莱姆", 55, 9)],
-    [("暗影领主", 110, 15), ("诅咒法师", 60, 10)],
+    [("暗影领主", 85, 14), ("诅咒法师", 55, 10)],
     # 第11-15关 中高阶
     [("恶魔猎手", 70, 12), ("熔岩犬", 58, 10)],
     [("毒沼领主", 80, 11), ("史莱姆", 60, 9), ("哥布林", 45, 9)],
@@ -49,7 +50,7 @@ ENEMY_POOL = [
     [("炼狱守卫", 95, 15), ("火焰领主", 70, 12)],
     [("幻影魔", 100, 14), ("镜像怪", 70, 11), ("寒冰法师", 55, 10)],
     [("深渊术士", 100, 15), ("诅咒法师", 75, 12), ("毒沼史莱姆", 65, 11)],
-    [("暗影大君", 150, 20), ("镜像怪", 80, 13), ("诅咒法师", 70, 12)],
+    [("暗影大君", 130, 18), ("镜像怪", 75, 12), ("诅咒法师", 65, 11)],
     # 第21-25关 精英
     [("混沌兽", 110, 16), ("恶魔猎手", 80, 13)],
     [("腐蚀领主", 120, 16), ("毒沼领主", 85, 12), ("史莱姆", 70, 10)],
@@ -62,7 +63,7 @@ ENEMY_POOL = [
     [("星辰使徒", 180, 22), ("虚空行者", 100, 16), ("混沌兽", 95, 15)],
     [("终焉骑士", 200, 24), ("铁壁将军", 100, 16), ("深渊术士", 90, 15)],
     # 第30关 Boss
-    [("暗影之神", 280, 30), ("终焉骑士", 120, 18), ("虚空行者", 100, 16)],
+    [("暗影之神", 220, 26), ("终焉骑士", 110, 16), ("虚空行者", 90, 14)],
 ]
 
 # 难度修正
@@ -152,10 +153,15 @@ def _get_stage_pool(difficulty: str) -> List[Dict[str, Any]]:
         name = STAGE_NAMES[i] if i < len(STAGE_NAMES) else f"第{i+1}层"
         base_enemies = ENEMY_POOL[i] if i < len(ENEMY_POOL) else ENEMY_POOL[-1]
 
-        # 难度随层数递增
-        layer_factor = 1.0 + i * 0.03
+        # 难度随层数递增（递减增长率，避免末期膨胀）
+        layer_factor = 1.0 + i * 0.022  # 原0.03，降低递增速度
+        # 地狱难度额外限制总倍率
+        if difficulty == "hell":
+            layer_factor = min(layer_factor, 1.55)  # 上限1.55x
+        hp_mult = mult["hp"] * layer_factor
+        dmg_mult = mult["dmg"] * layer_factor
         enemies = [
-            _scale_enemy(e, hp_mult=mult["hp"] * layer_factor, dmg_mult=mult["dmg"] * layer_factor)
+            _scale_enemy(e, hp_mult=hp_mult, dmg_mult=dmg_mult)
             for e in base_enemies
         ]
         stages.append({"name": name, "enemies": enemies})
@@ -215,10 +221,17 @@ def _build_branch_graph(difficulty: str) -> Dict[str, Any]:
     # 确定商店位置（随机插入层5-20之间，共4-6个商店）
     shop_layers = set(random.sample(range(5, min(22, total - 3)), min(5, 22 - 5)))
 
+    # 预计算每层节点数，用于相邻连接
+    def _layer_node_count(l):
+        if l == 0: return 1
+        if l == total - 2: return 1  # 营火
+        if l == total - 1: return 1  # Boss
+        return 3 if l % 3 == 0 else 2
+
     for layer in range(1, total - 2):
         base = stages[layer]
         nids = []
-        num_nodes = 3 if layer % 3 == 0 else 2  # 每3层有一个3叉分支
+        num_nodes = _layer_node_count(layer)
 
         # 确定本层节点类型
         types = ["normal", "normal"]
@@ -237,18 +250,28 @@ def _build_branch_graph(difficulty: str) -> Dict[str, Any]:
             if layer % 3 == 0:
                 types = ["normal", "elite", "event"]
 
+        # 确保 types 长度与 num_nodes 一致
+        if len(types) < num_nodes:
+            types.append("normal")
+        types = types[:num_nodes]
+
         # 确保每种类型有正确的敌人
         actual_enemies_list = []
         for rt in types:
             actual_enemies_list.append(_route_enemies(base["enemies"], layer, rt))
 
-        # 下一层节点ID
-        next_ids = [_node_id(layer + 1, i) for i in range(3 if (layer + 1) % 3 == 0 else 2)]
+        # 下一层节点数
+        next_count = _layer_node_count(layer + 1)
 
+        # 为每个节点计算相邻的下一层节点（参考杀戮尖塔规则）
         for i, rt in enumerate(types):
-            al = layer if layer >= 1 else 0
-            nid = _add_node(layer, i, rt, base["name"], actual_enemies_list[i],
-                             next_ids if i < len(next_ids) else [])
+            # 公式：节点 i 可连接到下一层中 start..end 范围内的节点
+            start = math.floor(i * next_count / num_nodes)
+            end = min(math.ceil((i + 1) * next_count / num_nodes) - 1, next_count - 1)
+            if start > end:
+                end = start
+            next_ids = [_node_id(layer + 1, j) for j in range(start, end + 1)]
+            nid = _add_node(layer, i, rt, base["name"], actual_enemies_list[i], next_ids)
             nids.append(nid)
         layers.append(nids)
 
@@ -478,6 +501,7 @@ class LevelManager:
                 return {"success": False, "error": "无效的遗物奖励"}
             self.relics.append(relic)
             self.messages.append(f"{relic['icon']} 获得遗物：{relic['name']}（{relic['desc']}）")
+            collection.record_relic_seen(relic['name'])
         elif reward_id == "heal_full":
             healed = self.player.max_hp - self.player.hp
             self.player.hp = self.player.max_hp
@@ -607,6 +631,7 @@ class LevelManager:
             relic = random.choice(candidates)
             self.relics.append(relic)
             self.messages.append(f"{relic['icon']} 购买遗物：{relic['name']}（{relic['desc']}）")
+            collection.record_relic_seen(relic['name'])
 
         self.shop_items = [it for it in self.shop_items if it["id"] != item_id]
         self.messages.append(f"💰 剩余 {self.gold} 金币")
@@ -619,6 +644,44 @@ class LevelManager:
         self._shop_open = False
         self.shop_items = []
         self._after_non_combat()
+        return {"success": True, "state": self.get_state()}
+
+    def restart_stage(self) -> Dict[str, Any]:
+        """重新开始当前关卡（仅战斗节点可重试，事件/营火/商店不可）"""
+        if self.status != "defeat":
+            return {"success": False, "error": "当前未处于失败状态"}
+        node = self._current_stage_data()
+        route_type = node.get("route_type", "normal")
+        if route_type in ("campfire", "shop", "event"):
+            return {"success": False, "error": f"非战斗节点（{route_type}）无法重新开始，请选择重新开始当前难度关卡"}
+        # 重置玩家状态：满血、清空 debuff 和 buff
+        self.player.hp = self.player.max_hp
+        self.player.poison = 0
+        self.player.burn = 0
+        self.player.bleed = 0
+        self.player.weak = 0
+        self.player.vulnerable = 0
+        self.player.curse = 0
+        self.player.block = 0
+        self.player.energy = self.player.max_energy
+        self.player.thorns = 0
+        self.player.blessing = 0
+        self.player.skeletons = 0
+        self.player.double_next_card = False
+        self.player.iron_wall = 0
+        self.player.counter = 0
+        self.player.auto_shield = False
+        self.player.block_persist = False
+        self.player.turret_damage = 0
+        self.player.skill_used_this_turn = False
+        self.player.strength = self._base_strength
+        self._next_battle_strength_bonus = 0
+        self._next_battle_block_bonus = 0
+        self._prepare_next_stage_deck()
+        self._reward_claimed_for_stage = False
+        self.battle = None
+        self.messages = []
+        self._enter_stage()
         return {"success": True, "state": self.get_state()}
 
     # ── 内部 ──
@@ -642,6 +705,9 @@ class LevelManager:
 
         # 战斗节点
         enemies = [Enemy(name, hp, dmg) for name, hp, dmg in stage["enemies"]]
+        # 记录遇到的敌人
+        for name, _, _ in stage["enemies"]:
+            collection.record_enemy_seen(name)
         self.battle = WebBattle(self.player, enemies)
         self.battle.start()
         self._apply_relic_battle_start(enemies)
@@ -783,6 +849,8 @@ class LevelManager:
                 self.messages.append("🏆 你成为了真正的卡牌大师！")
                 self.messages.append(f"{'★'*40}")
                 self.status = "victory"
+                # 记录通关
+                collection.record_game_result(True, self.character_id, self.current_stage)
             else:
                 self.status = "stage_clear"
                 self.messages.append(f"\n✅ 第 {stage_num}/{total} 关通过！")
@@ -833,6 +901,8 @@ class LevelManager:
             self.status = "defeat"
             self.messages.append(f"💀 在第 {self.current_stage+1} 关倒下了...")
             self.messages.append("🔄 按 R 重新开始挑战")
+            # 记录失败
+            collection.record_game_result(False, self.character_id, self.current_stage)
 
     def _current_stage_data(self) -> Dict[str, Any]:
         return self.branch_graph["nodes"][self.current_node_id]
@@ -849,6 +919,8 @@ class LevelManager:
             "risk": node.get("risk", 1),
             "reward_hint": node.get("reward_hint", ""),
             "enemies": [{"name": e[0], "hp": e[1], "damage": e[2]} for e in node["enemies"]],
+            "next": node.get("next", []),
+            "x": node.get("x", 0), "y": node.get("y", 0),
         }
 
     def _next_branch_choices(self) -> List[Dict[str, Any]]:

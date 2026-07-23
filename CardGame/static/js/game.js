@@ -19,6 +19,7 @@ const API = {
     openShop(){return this.request('POST','/api/open-shop',{});},
     buyItem(id){return this.request('POST','/api/buy-item',{item_id:id});},
     leaveShop(){return this.request('POST','/api/leave-shop',{});},
+    restartStage(){return this.request('POST','/api/restart-stage',{});},
 };
 
 let g = {mode:'single',state:null,prev:null,sel:null,aim:false,busy:false,help:false,over:false,char:'warrior'};
@@ -37,19 +38,32 @@ function qa(s){return document.querySelectorAll(s);}
 
 function cache(){
     D={
+        menu:$('main-menu'),
+        gc:q('.game-container'), vignette:$('low-hp-vignette'),
+        menuSingle:$('menu-single'), menuMulti:$('menu-multi'),
+        menuCollection:$('menu-collection'), menuSettings:$('menu-settings'),
+        menuQuit:$('menu-quit'),
+        toast:$('toast-container'), cf:$('confirm-overlay'),
+        cfMsg:$('confirm-message'), cfOk:$('confirm-ok'), cfCancel:$('confirm-cancel'),
+        tt:$('card-tooltip'), ttName:$('tt-name'), ttCost:$('tt-cost'),
+        ttType:$('tt-type'), ttDesc:$('tt-desc'), ttKw:$('tt-keywords'),
+        col:$('collection-overlay'), colContent:$('collection-content'),
+        colClose:$('collection-close'), colTabs:qa('.col-tab'),
         modal:$('mode-modal'), stepChar:$('step-char'), stepMode:$('step-mode'),
         stepBar:qa('.step'), charSelect:$('char-select'),
         charOpts:qa('#char-select .char-option'), charNext:$('char-next'),
-        modeSubtitle:$('mode-subtitle'), modeBack:$('mode-back'), customBack:$('custom-back'),
-        tabBtns:qa('.tab-btn'), tabPanels:qa('.tab-panel'),
+        modeSubtitle:$('mode-subtitle'), modeBack:$('mode-back'),
         mN:$('mode-normal'),mE:$('mode-elite'),mB:$('mode-boss'),
         mL:$('mode-level'),mLH:$('mode-level-hard'),mLHe:$('mode-level-hell'),
         cEnemies:$('custom-enemies'),cAdd:$('custom-add-enemy'),
         cStart:$('custom-start'),cHp:$('custom-player-hp'),
         presetBtns:qa('.preset-btn'),
-        stage:$('stage-info'),
-        routeOverlay:$('route-overlay'), routeMap:$('route-map'),
-        routeChoices:$('route-choices'), routeCurrent:$('route-current'),
+        mapToggle:$('map-toggle'), mapToggleBadge:$('map-toggle-badge'),
+        mapPanel:$('map-panel'), mapPanelClose:$('map-panel-close'),
+        mapPanelProgress:$('map-panel-progress'),
+        mapPanelCanvas:$('map-panel-canvas'),
+        mapSvg:$('map-svg'),
+        routeMap:$('route-map'), routeChoices:$('route-choices'),
         ea:$('enemy-area'),la:$('log-area'),ha:$('hand-area'),
         pa:q('.player-avatar-img'),
         pn:q('.player-hp-section .player-name'),
@@ -66,6 +80,9 @@ function cache(){
         ev:$('event-overlay'), evIcon:$('event-icon'),
         evTitle:$('event-title'), evMsg:$('event-message'),
         evBtn:$('event-continue-btn'),
+        df:$('defeat-overlay'), dfMsg:$('defeat-message'),
+        dfRestart:$('defeat-restart-btn'), dfRetry:$('defeat-retry-btn'),
+        dfMenu:$('defeat-menu-btn'),
     };
 }
 
@@ -131,19 +148,229 @@ function scb(){
 }
 function th(){g.help=!g.help;D.ho.classList.toggle('hidden',!g.help);scb();}
 function cs(){if(g.aim||g.sel!==null){g.aim=false;g.sel=null;ra();return true;}return false;}
-function cm(){D.modal.classList.add('hidden');}
-function om(){D.modal.classList.remove('hidden');ss('char');scb();}
+function cm(){D.gc.classList.remove('trans-out');D.modal.classList.add('hidden');}
+function om(){D.modal.classList.add('hidden');showMainMenu();}
+function showMainMenu(){D.gc.classList.remove('trans-out');D.menu.classList.remove('hidden');if(D.modal)D.modal.classList.add('hidden');scb();}
+function hideMainMenu(){D.menu.classList.add('hidden');}
+function transOut(cb){D.gc.classList.add('trans-out');setTimeout(cb,300);}
+function toggleMap(){
+    if(!D.mapPanel)return;
+    const open=D.mapPanel.classList.toggle('hidden');
+    if(!open){
+        renderRouteScreen();
+        mapDrag._scrolledToCurrent=false;
+    }
+}
+
+// ═══ Toast 通知 ═══
+function toast(msg,type='info'){
+    const el=document.createElement('div');
+    el.className='toast-item '+(type==='error'?'toast-error':type==='success'?'toast-success':'');
+    el.textContent=msg;
+    D.toast.appendChild(el);
+    setTimeout(()=>{
+        el.style.animation='toastOut 0.3s ease-out forwards';
+        el.addEventListener('animationend',()=>el.remove());
+    },2500);
+}
+
+// ═══ 确认弹窗 ═══
+function confirmAsync(msg){
+    return new Promise(resolve=>{
+        D.cfMsg.textContent=msg;
+        D.cf.classList.remove('hidden');
+        function ok(){cleanup();resolve(true);}
+        function cancel(){cleanup();resolve(false);}
+        function cleanup(){
+            D.cf.classList.add('hidden');
+            D.cfOk.removeEventListener('click',ok);
+            D.cfCancel.removeEventListener('click',cancel);
+        }
+        D.cfOk.addEventListener('click',ok);
+        D.cfCancel.addEventListener('click',cancel);
+    });
+}
+
+function startSinglePlayer(){
+    hideMainMenu();
+    transOut(()=>{
+        D.modal.classList.remove('hidden');
+        ss('char');
+        scb();
+    });
+}
+
+function showComingSoon(feature){
+    toast(`「${feature}」功能开发中，敬请期待`);
+}
+
+// ═══ 卡牌 Tooltip ═══
+const KEYWORDS={
+    '回响':'下一张打出的牌释放两次',
+    '连击':'本回合每打出过一张牌，伤害+2',
+    '消耗':'使用后从牌组中永久移除',
+    '流血':'每回合造成层数点伤害，持续衰减',
+    '中毒':'每回合造成层数点伤害，持续衰减',
+    '烧伤':'每回合造成层数点伤害，持续衰减',
+    '虚弱':'攻击伤害降低25%',
+    '易伤':'受到的伤害增加50%',
+    '诅咒':'无法打出，回合结束时自动弃掉',
+    '力量':'增加攻击牌造成的伤害',
+    '格挡':'抵消伤害，部分格挡会保留',
+    '荆棘':'受到攻击时反弹伤害',
+    '炮台':'每回合对随机敌人造成伤害',
+    '骷髅':'每回合攻击随机敌人',
+    '祝福':'每回合回复生命',
+    '铁壁':'获得格挡时额外+3',
+    '反击':'受到攻击时反击',
+    '护盾保留':'回合结束时不消除全部格挡',
+    '自动护盾':'每回合自动获得10格挡',
+    '双倍':'下一张牌效果翻倍',
+};
+function showCardTooltip(card,ev){
+    if(!D.tt)return;
+    const type=card.dataset.type||'';
+    const typeNames={attack:'攻击',skill:'技能',power:'能力',curse:'诅咒'};
+    const typeName=typeNames[type]||'';
+    D.ttName.textContent=card.dataset.name||'';
+    D.ttCost.textContent=card.dataset.cost||'0';
+    D.ttCost.style.display=(type==='curse'&&!card.dataset.cost)?'none':'';
+    D.ttType.textContent=typeName;
+    D.ttType.className='tt-type type-'+(type==='attack'?'攻击':type==='skill'?'技能':type==='power'?'能力':'诅咒');
+    D.ttDesc.textContent=card.dataset.desc||'';
+    // 提取关键词
+    const desc=card.dataset.desc||'';
+    let kwHtml='';
+    for(const [kw,exp] of Object.entries(KEYWORDS)){
+        if(desc.includes(kw)){
+            kwHtml+=`<span>${kw}</span>: ${exp}<br>`;
+        }
+    }
+    D.ttKw.innerHTML=kwHtml||'';
+    D.tt.classList.remove('hidden');
+    const rect=card.getBoundingClientRect();
+    let x=rect.left+rect.width/2;
+    let y=rect.top-10;
+    D.tt.style.left=x+'px';
+    D.tt.style.top=y+'px';
+    D.tt.style.transform='translate(-50%,-100%)';
+    // 防止超出屏幕
+    const tRect=D.tt.getBoundingClientRect();
+    if(tRect.top<0){D.tt.style.top=(rect.bottom+10)+'px';D.tt.style.transform='translate(-50%,0)';}
+    if(tRect.left<0)D.tt.style.left='10px';
+    if(tRect.right>window.innerWidth)D.tt.style.left=(window.innerWidth-tRect.width-10)+'px';
+}
+function hideCardTooltip(){
+    if(D.tt)D.tt.classList.add('hidden');
+}
+
+async function closeGame(){
+    const ok=await confirmAsync('确定要关闭游戏吗？');
+    if(ok){
+        window.close();
+        setTimeout(()=>{toast('请手动关闭浏览器标签页','error');},200);
+    }
+}
+
+// ═══ 图鉴系统 ═══
+async function showCollection(){
+    hideMainMenu();
+    D.col.classList.remove('hidden');
+    try{
+        const r=await fetch('/api/collection');
+        const j=await r.json();
+        g.colData=j.data;
+    }catch(e){g.colData=null;}
+    renderCollectionTab('cards');
+    // tab切换
+    D.colTabs.forEach(t=>t.addEventListener('click',function(){
+        D.colTabs.forEach(t2=>t2.classList.remove('active'));
+        this.classList.add('active');
+        renderCollectionTab(this.dataset.ctab);
+    }));
+}
+
+function closeCollection(){
+    D.col.classList.add('hidden');
+    showMainMenu();
+}
+
+function renderCollectionTab(tab){
+    if(!D.colContent)return;
+    const d=g.colData;
+    if(!d){D.colContent.innerHTML='<p style="color:var(--text-dim);padding:20px;">加载失败</p>';return;}
+    let html='';
+    if(tab==='cards'){
+        html=renderCollectionGrid(d.cards,'cards');
+    }else if(tab==='enemies'){
+        html=renderCollectionGrid(d.enemies,'enemies');
+    }else if(tab==='relics'){
+        html=renderCollectionGrid(d.relics,'relics');
+    }else if(tab==='stats'){
+        html=renderStats(d.stats);
+    }
+    D.colContent.innerHTML=html;
+}
+
+function renderCollectionGrid(cat,type){
+    const seen=cat.seen||[];
+    const all=cat.all||[];
+    const seenSet=new Set(seen);
+    const progress=seen.length+'/'+cat.total;
+    const icons={
+        cards:'🃏',enemies:'👾',relics:'🏺',
+    };
+    let html=`<div class="col-progress">${icons[type]||'📋'} 已收集 ${progress} 项</div>
+    <div class="col-grid">`;
+    for(const name of all){
+        const found=seenSet.has(name);
+        html+=`<div class="col-item ${found?'':'col-item-hidden'}">
+            <span class="col-item-icon">${found?'✅':'❓'}</span>
+            <span class="col-item-name">${name}</span>
+        </div>`;
+    }
+    html+='</div>';
+    return html;
+}
+
+function renderStats(stats){
+    const cs=stats.char_stats||{};
+    let charRows='';
+    for(const [cid,info] of Object.entries(cs)){
+        charRows+=`<tr>
+            <td>${cid}</td>
+            <td>${info.wins||0}</td>
+            <td>${info.games||0}</td>
+            <td>${info.highest_stage||0}</td>
+        </tr>`;
+    }
+    return `<div class="col-stats">
+        <div class="col-stat-row">
+            <span class="col-stat-label">🏆 总胜场</span>
+            <span class="col-stat-val">${stats.total_wins||0}</span>
+        </div>
+        <div class="col-stat-row">
+            <span class="col-stat-label">📋 总场次</span>
+            <span class="col-stat-val">${stats.total_games||0}</span>
+        </div>
+        <div class="col-stat-row">
+            <span class="col-stat-label">📈 最高关卡</span>
+            <span class="col-stat-val">${stats.highest_stage||0}</span>
+        </div>
+        <div class="col-stat-row">
+            <span class="col-stat-label">📊 胜率</span>
+            <span class="col-stat-val">${stats.total_games>0?Math.round(stats.total_wins/stats.total_games*100):0}%</span>
+        </div>
+        ${charRows?`<h3 style="margin-top:20px;color:var(--gold);">各角色统计</h3>
+        <table class="col-table"><thead><tr><th>角色</th><th>胜场</th><th>场次</th><th>最高关卡</th></tr></thead><tbody>${charRows}</tbody></table>`:''}
+    </div>`;
+}
 
 function ss(s){
     const c=s==='char';
     D.stepChar.classList.toggle('active',c);
     D.stepMode.classList.toggle('active',!c);
     D.stepBar.forEach(s=>s.classList.toggle('active',s.dataset.step===(c?'1':'2')));
-}
-function st(t){
-    D.tabBtns.forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
-    D.tabPanels.forEach(p=>p.classList.toggle('active',p.id==='tab-'+t));
-    if(t==='custom'&&D.cEnemies.children.length===0)aer();
 }
 
 // ═══ 角色 ═══
@@ -155,7 +382,7 @@ function sc(id){
 function cc(){
     const a=D.charSelect.querySelector('.char-option.active');
     sc(a?a.dataset.char:'warrior');
-    D.modeSubtitle.textContent=`⚔️ ${{warrior:'勇者',elf:'精灵',wizard:'巫师',paladin:'圣骑士',assassin:'刺客',priest:'牧师',mechanist:'机械师',necromancer:'亡灵法师',alchemist:'炼金术士'}[g.char]} · 选择战斗模式`;
+    D.modeSubtitle.textContent=`⚔️ ${{warrior:'无畏锋刃',elf:'共鸣之风',wizard:'灼疫使者',paladin:'裁决之盾',assassin:'血色暗影',priest:'棘光圣者',mechanist:'福音齿轮',necromancer:'黑血祭师',alchemist:'蚀毒秘使'}[g.char]} · 选择战斗模式`;
     ss('mode');
 }
 
@@ -201,7 +428,7 @@ async function scm(){
     }catch(e){console.error(e);ser('❌ 请求异常: '+e.message);}
 }
 function ser(m){
-    const c=D.cEnemies.closest('.tab-panel');if(!c)return;
+    const c=D.cEnemies.closest('.mode-card');if(!c)return;
     const o=c.querySelector('.ce-err');if(o)o.remove();
     const e=document.createElement('div');e.className='ce-err';e.textContent=m;
     c.querySelector('.custom-actions')?.after(e);
@@ -238,8 +465,15 @@ function re(){
         D.ea.innerHTML+=`<div class="enemy-card ${t}${d?' dead':''}" data-index="${i}">${p}${img?`<div class="portrait"><img src="${img}" onerror="this.style.display='none'"></div>`:''}<div class="enemy-name">${d?'💀 ':''}${e.name}</div>${body}</div>`;
     });
     if(g.aim)D.ea.querySelectorAll('.enemy-card.targetable').forEach(el=>{el.addEventListener('click',()=>pt(+el.dataset.index));});
+    // 拖放支持
+    D.ea.querySelectorAll('.enemy-card:not(.dead)').forEach(el=>{
+        el.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';el.classList.add('drag-over');});
+        el.addEventListener('dragleave',()=>el.classList.remove('drag-over'));
+        el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('drag-over');const dt=e.dataTransfer.getData('text/plain');if(dt.startsWith('card:')){const ci=+dt.slice(5);if(!act()||g.busy||isR()||isP())return;const c=g.state?.hand?.[ci];if(!c||!c.playable)return;const ti=+el.dataset.index;pc(ci,ti);}else if(dt==='skill'){useSkill();}});
+    });
 }
 function rh(){
+    hideCardTooltip();
     D.ha.innerHTML='';
     const h=g.state?.hand;
     if(!h||h.length===0){D.ha.innerHTML='<div class="hand-empty">🃏手牌为空</div>';return;}
@@ -247,10 +481,20 @@ function rh(){
         const cp=c.playable&&!g.aim&&act()&&!isR();
         const sel=g.sel===i;
         const cls=['card',`card-${c.type}`,cp?'playable':'',sel?'selected':'',!cp&&!sel&&act()?'disabled':''].filter(Boolean).join(' ');
-        D.ha.innerHTML+=`<div class="${cls}" data-index="${i}"><div class="card-cost">${c.cost}</div>${i<9?`<div class="card-badge">${BG[i]}</div>`:''}<div class="card-name">${c.name}</div>${c.self_target&&cp?'<div class="self-tag">🔄自身</div>':''}<div class="card-type">${c.type}</div><div class="card-desc">${c.description}</div>${c.upgraded?'<div class="upgraded">✨升级</div>':''}</div>`;
+        D.ha.innerHTML+=`<div class="${cls}" data-index="${i}" data-name="${c.name}" data-cost="${c.cost}" data-type="${c.type}" data-desc="${c.description}" data-upgraded="${c.upgraded||''}">${i<9?`<div class="card-badge">${BG[i]}</div>`:''}<div class="card-cost">${c.cost}</div><div class="card-name">${c.name}</div>${c.self_target&&cp?'<div class="self-tag">🔄自身</div>':''}<div class="card-type">${c.type}</div><div class="card-desc">${c.description}</div>${c.upgraded?'<div class="upgraded">✨升级</div>':''}</div>`;
     });
-    D.ha.querySelectorAll('.card.playable').forEach(el=>{el.addEventListener('click',()=>oc(+el.dataset.index));});
+    D.ha.querySelectorAll('.card.playable').forEach(el=>{
+        el.addEventListener('click',()=>oc(+el.dataset.index));
+        el.setAttribute('draggable','true');
+        el.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain','card:'+el.dataset.index);e.dataTransfer.effectAllowed='move';el.classList.add('dragging');hideCardTooltip();});
+        el.addEventListener('dragend',e=>{el.classList.remove('dragging');});
+    });
     D.ha.querySelectorAll('.card.selected, .card.playable').forEach(el=>{el.addEventListener('contextmenu',e=>{e.preventDefault();cs();});});
+    // tooltip
+    D.ha.querySelectorAll('.card').forEach(el=>{
+        el.addEventListener('mouseenter',e=>showCardTooltip(el,e));
+        el.addEventListener('mouseleave',hideCardTooltip);
+    });
 }
 function rp(){
     const p=g.state?.player;if(!p)return;
@@ -259,6 +503,12 @@ function rp(){
     if(D.pn)D.pn.textContent=p.name;
     if(D.pf){D.pf.style.width=hp+'%';D.pf.className='hp-fill'+(l?' low':'');}
     if(D.pt)D.pt.innerHTML=`<span class="hp-val">${p.hp}</span><span class="hp-sep">/</span><span class="hp-max-val">${p.max_hp}</span>`;
+    // 低血量暗角
+    if(D.vignette){
+        if(hp<15){D.vignette.className='low-hp-vignette danger';}
+        else if(hp<30){D.vignette.className='low-hp-vignette warning';}
+        else{D.vignette.className='low-hp-vignette hidden';}
+    }
     const e=D.eo;
     if(e){
         const cur=p.energy??0;
@@ -301,6 +551,9 @@ function rp(){
         sb.disabled=!sk.usable;
         sb.style.display='';
         sb.onclick=useSkill;
+        sb.setAttribute('draggable','true');
+        sb.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain','skill');e.dataTransfer.effectAllowed='move';sb.classList.add('dragging');});
+        sb.addEventListener('dragend',()=>sb.classList.remove('dragging'));
     }else{
         const sb=D.ha.querySelector('.skill-btn');
         if(sb)sb.style.display='none';
@@ -316,13 +569,21 @@ function rp(){
     }
 }
 function rsi(){
-    if(!isL()){D.stage.style.display='none';return;}
-    D.stage.style.display='flex';const s=g.state;if(!s)return;
+    if(!isL()){D.mapToggle.classList.add('hidden');return;}
+    const s=g.state;if(!s)return;
     const c=s.current_stage+1,t=s.total_stages;
-    const rows=(s.branch_layers||[]).map(layer=>`<div class="map-layer">${layer.map(n=>`<div class="map-node ${n.visited?'visited':''} ${n.current?'current':''} ${n.available?'available':''}" title="${n.name}">${n.icon||'●'}<span>${n.layer+1}</span></div>`).join('')}</div>`).join('');
-    D.stage.innerHTML=`<div class="stage-map">${rows}</div><div class="stage-label">${c}/${t}</div><div class="stage-chapter">${s.chapter||''}</div><div class="stage-name">${s.stage_name||''}</div>`;
+    // 小地图图标
+    D.mapToggle.classList.remove('hidden');
+    if(D.mapToggleBadge)D.mapToggleBadge.textContent=`${c}/${t}`;
 }
 function rrw(){
+    // 路线选择时自动展开地图面板
+    if(isP()&&g.state?.branch_choices?.length){
+        if(D.mapPanel){
+            D.mapPanel.classList.remove('hidden');
+            mapDrag._scrolledToCurrent=false;
+        }
+    }
     renderRouteScreen();
     if(isR()&&g.state?.rewards?.length){
         D.rp.classList.remove('hidden');const s=g.state;let nh='<div class="next-stage-preview">领奖后会进入路线选择界面</div>';
@@ -330,29 +591,146 @@ function rrw(){
         s.rewards.forEach(r=>{const b=document.createElement('button');b.className='btn btn-primary';b.innerHTML=r.label;b.title=r.desc||'';b.addEventListener('click',()=>cr(r.id));D.rb.appendChild(b);});
     }else D.rp.classList.add('hidden');
 }
+// ═══ 地图拖拽状态 ═══
+let mapDrag={on:false,sx:0,sy:0,scrollX:0,scrollY:0};
+
 function renderRouteScreen(){
-    if(!D.routeOverlay)return;
-    const open=isP()&&g.state?.branch_choices?.length;
-    D.routeOverlay.classList.toggle('hidden',!open);
-    if(!open)return;
-    const s=g.state, cur=s.current_node||{};
-    D.routeCurrent.innerHTML=`当前：${cur.icon||'●'} ${cur.name||''}`;
-    D.routeMap.innerHTML=(s.branch_layers||[]).map(layer=>`<div class="route-layer">${layer.map(n=>`<div class="route-node ${n.visited?'visited':''} ${n.current?'current':''} ${n.available?'available':''}" title="${n.name}"><span>${n.icon||'●'}</span><em>${n.layer+1}</em></div>`).join('')}</div>`).join('');
-    D.routeChoices.innerHTML=s.branch_choices.map(b=>{
-        const enemies=b.enemies.map(e=>`<span>${e.name}<small>❤️${e.hp}</small></span>`).join('');
-        const risk='★'.repeat(b.risk||1)+'☆'.repeat(Math.max(0,4-(b.risk||1)));
-        return `<button class="route-card" data-node="${b.id}">
-            <div class="route-card-icon">${b.icon||'●'}</div>
-            <div class="route-card-body">
-                <strong>${b.name}</strong>
-                <label>${b.route||''}</label>
-                <p>${b.desc||''}</p>
-                <div class="route-meta"><span>风险 ${risk}</span><span>奖励：${b.reward_hint||'普通奖励'}</span></div>
-                <div class="route-enemies">${enemies}</div>
-            </div>
-        </button>`;
-    }).join('');
-    D.routeChoices.querySelectorAll('.route-card').forEach(b=>b.addEventListener('click',()=>cb(b.dataset.node)));
+    if(!D.mapPanel)return;
+    if(!isL()){D.mapPanel.classList.add('hidden');return;}
+    const s=g.state;if(!s)return;
+    const c=s.current_stage+1,t=s.total_stages;
+    if(D.mapPanelProgress)D.mapPanelProgress.textContent=`${c}/${t}`;
+
+    const layers=s.branch_layers||[];
+    if(!layers.length){D.routeMap.innerHTML='';D.mapSvg.innerHTML='';return;}
+
+    const canvas=D.mapPanelCanvas;
+    const nodeGap=90, layerGap=100, padX=80, padY=60;
+    const totalLayers=layers.length;
+    const maxNodes=Math.max(...layers.map(l=>l.length),1);
+    const canvasW=Math.max(maxNodes*nodeGap+padX*2, canvas.clientWidth);
+    const canvasH=totalLayers*layerGap+padY*2;
+
+    // 设置画布内部尺寸（使滚动生效）
+    D.mapSvg.style.width=canvasW+'px';
+    D.mapSvg.style.height=canvasH+'px';
+    D.mapSvg.setAttribute('viewBox',`0 0 ${canvasW} ${canvasH}`);
+    D.routeMap.style.width=canvasW+'px';
+    D.routeMap.style.height=canvasH+'px';
+
+    // 构建节点坐标映射: id -> {x, y, node}
+    const nodeMap={};
+    layers.forEach((layer,li)=>{
+        const nCount=layer.length;
+        const startX=canvasW/2-(nCount-1)*nodeGap/2;
+        layer.forEach((n,ni)=>{
+            const x=startX+ni*nodeGap;
+            const y=padY+li*layerGap;
+            nodeMap[n.id]={x,y,node:n};
+        });
+    });
+
+    // 渲染 SVG 连线
+    let svgHtml='';
+    Object.values(nodeMap).forEach(({x,y,node:n})=>{
+        if(!n.next||!n.next.length)return;
+        n.next.forEach(nid=>{
+            const to=nodeMap[nid];
+            if(!to)return;
+            const visited=n.visited&&to.node.visited;
+            const active=n.current;
+            const stroke=visited?'rgba(246,201,64,.5)':active?'rgba(246,201,64,.35)':'rgba(255,255,255,.12)';
+            const width=visited?2:active?1.5:1;
+            svgHtml+=`<line x1="${x}" y1="${y}" x2="${to.x}" y2="${to.y}" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round"/>`;
+        });
+    });
+    D.mapSvg.innerHTML=svgHtml;
+
+    // 渲染节点
+    let nodesHtml='';
+    Object.values(nodeMap).forEach(({x,y,node:n})=>{
+        const rt=n.route_type||'';
+        const tc=rt==='normal'?'combat':rt==='elite'?'elite':rt==='event'?'event':rt==='campfire'?'campfire':rt==='shop'?'shop':rt==='boss'?'boss':'';
+        const cls=['route-map-node',`type-${tc}`,n.visited?'visited':'',n.current?'current':'',n.available?'available':''].filter(Boolean).join(' ');
+        nodesHtml+=`<div class="${cls}" data-tip="${n.name}" style="left:${x}px;top:${y}px;" title="${n.name}">${n.icon||'●'}<span class="node-layer">${n.layer+1}</span></div>`;
+    });
+    D.routeMap.innerHTML=nodesHtml;
+
+    // 路线选择
+    if(isP()&&s.branch_choices?.length){
+        D.routeChoices.innerHTML='<div class="route-choices-header">选择下一条路线</div>'+s.branch_choices.map(b=>{
+            const rt=b.route||'';const tc=rt==='战斗'?'combat':rt==='精英'?'elite':rt==='事件'?'event':rt==='营火'?'campfire':rt==='商店'?'shop':rt==='Boss'?'boss':'';
+            const enemies=b.enemies.map(e=>`<span>${e.name}<small>❤️${e.hp}</small></span>`).join('');
+            const risk='★'.repeat(b.risk||1)+'☆'.repeat(Math.max(0,4-(b.risk||1)));
+            return `<button class="route-card type-${tc}" data-node="${b.id}">
+                <div class="route-card-icon">${b.icon||'●'}</div>
+                <div class="route-card-body">
+                    <strong>${b.name}</strong>
+                    <label>${b.route||''}</label>
+                    <p>${b.desc||''}</p>
+                    <div class="route-meta"><span>风险 ${risk}</span><span>奖励：${b.reward_hint||'普通奖励'}</span></div>
+                    <div class="route-enemies">${enemies}</div>
+                </div>
+            </button>`;
+        }).join('');
+        D.routeChoices.querySelectorAll('.route-card').forEach(b=>b.addEventListener('click',()=>cb(b.dataset.node)));
+    }else{
+        D.routeChoices.innerHTML='';
+    }
+
+    // 滚动到当前节点（仅首次打开时）
+    if(!mapDrag._scrolledToCurrent){
+        const curNode=nodeMap[s.current_node_id];
+        if(curNode){
+            const sx=curNode.x-canvas.clientWidth/2;
+            const sy=curNode.y-canvas.clientHeight/2+layerGap/2;
+            canvas.scrollTo({left:Math.max(0,sx),top:Math.max(0,sy),behavior:'instant'});
+        }
+        mapDrag._scrolledToCurrent=true;
+    }
+}
+
+// ═══ 地图拖拽平移 ═══
+function initMapDrag(){
+    const canvas=D.mapPanelCanvas;
+    if(!canvas)return;
+    canvas.addEventListener('mousedown',e=>{
+        if(e.target.closest('.route-map-node')||e.target.closest('.route-card'))return;
+        mapDrag.on=true;
+        mapDrag.sx=e.clientX;
+        mapDrag.sy=e.clientY;
+        mapDrag.scrollX=canvas.scrollLeft;
+        mapDrag.scrollY=canvas.scrollTop;
+        canvas.classList.add('grabbing');
+        e.preventDefault();
+    });
+    window.addEventListener('mousemove',e=>{
+        if(!mapDrag.on)return;
+        const dx=e.clientX-mapDrag.sx;
+        const dy=e.clientY-mapDrag.sy;
+        canvas.scrollLeft=mapDrag.scrollX-dx;
+        canvas.scrollTop=mapDrag.scrollY-dy;
+    });
+    window.addEventListener('mouseup',()=>{
+        if(mapDrag.on){mapDrag.on=false;canvas.classList.remove('grabbing');}
+    });
+    // 鼠标滚轮：原生 overflow:auto 已处理，无需额外代码
+}
+
+// ═══ 地图键盘导航 ═══
+function handleMapKeys(e){
+    const canvas=D.mapPanelCanvas;
+    if(!canvas)return false;
+    const k=e.key;
+    const step=120;
+    switch(k){
+        case 'ArrowUp': canvas.scrollBy({top:-step,behavior:'instant'}); return true;
+        case 'ArrowDown': canvas.scrollBy({top:step,behavior:'instant'}); return true;
+        case 'ArrowLeft': canvas.scrollBy({left:-step,behavior:'instant'}); return true;
+        case 'ArrowRight': canvas.scrollBy({left:step,behavior:'instant'}); return true;
+        case 'Escape': D.mapPanel.classList.add('hidden'); return true;
+    }
+    return false;
 }
 function rl(){
     D.la.innerHTML='';const ms=g.state?.messages;
@@ -387,7 +765,7 @@ function anim(){
     });
 }
 function flash(el,cls){el.classList.remove('anim-'+cls);void el.offsetWidth;el.classList.add('anim-'+cls);setTimeout(()=>el.classList.remove('anim-'+cls),520);}
-function ra(){if(!g.state)return;rsi();re();rh();rp();rl();rrw();rb();scb();renderShop();renderEventOverlay();anim();g.prev=snap(g.state);}
+function ra(){if(!g.state)return;rsi();re();rh();rp();rl();rrw();rb();scb();renderShop();renderEventOverlay();renderDefeatOverlay();anim();g.prev=snap(g.state);}
 
 // ═══ 操作 ═══
 function oc(i){
@@ -472,7 +850,42 @@ async function evContinue(){
     /* 事件弹窗继续：进入路线选择 */
     if(g.busy)return;
     D.ev.classList.add('hidden');
+    if(g.state)g.state.event_data=null;
     ra();
+}
+function renderDefeatOverlay(){
+    if(!D.df)return;
+    const show=g.over&&g.state?.status==='defeat';
+    D.df.classList.toggle('hidden',!show);
+    if(!show)return;
+    const s=g.state;
+    D.dfMsg.textContent=`在第 ${s.current_stage+1}/${s.total_stages} 层倒下了...`;
+    const rt=s.current_node?.route_type;
+    const canRetry=rt&&!['campfire','shop','event'].includes(rt);
+    if(D.dfRetry){
+        D.dfRetry.style.display=canRetry?'':'none';
+        if(!canRetry)D.dfRetry.title='非战斗节点无法重试';
+    }
+}
+function defeatRetry(){
+    if(g.busy)return;
+    g.busy=true;
+    D.df.classList.add('hidden');
+    API.restartStage().then(r=>{
+        if(!r.success){toast(r.error,'error');D.df.classList.remove('hidden');return;}
+        as(r);ra();
+    }).catch(e=>console.error(e)).finally(()=>{g.busy=false;});
+}
+function defeatRestart(){
+    if(g.busy)return;
+    const diff=g.state?.difficulty||'easy';
+    D.df.classList.add('hidden');
+    sl(diff);
+}
+function defeatMenu(){
+    D.df.classList.add('hidden');
+    g.over=false;
+    om();
 }
 async function useSkill(){
     if(!act()||g.busy||isR()||isP())return;
@@ -513,18 +926,18 @@ async function sgm(m){
     try{
         const r=await API.newGame(m,g.char);
         console.log('[GAME] response:',r.success?'OK':'FAIL',r.error||'');
-        if(!r.success){alert('启动失败: '+r.error);return;}
+        if(!r.success){toast('启动失败: '+r.error,'error');return;}
         g.mode='single';g.prev=null;g.state=r.state;ra();scb();
-    }catch(e){console.error(e);alert('网络错误');}
+    }catch(e){console.error(e);toast('网络错误','error');}
 }
 async function sl(d){
     console.log('[LEVEL] start diff='+d+' char='+g.char);
     cm();g.over=false;g.sel=null;g.aim=false;g.busy=false;g.state=null;g.prev=null;
     try{
         const r=await API.startLevel(d,g.char);
-        if(!r.success){alert('启动失败: '+r.error);return;}
+        if(!r.success){toast('启动失败: '+r.error,'error');return;}
         g.mode='level';g.prev=null;g.state=r.state;ra();scb();
-    }catch(e){console.error(e);alert('网络错误');}
+    }catch(e){console.error(e);toast('网络错误','error');}
 }
 
 // ═══ 键盘 ═══
@@ -532,6 +945,10 @@ function hkd(e){
     const k=e.key,mo=!D.modal.classList.contains('hidden');
     const pp=q('.pile-popup-overlay');
     if(pp&&k==='Escape'){pp.remove();e.preventDefault();return;}
+    // 地图面板打开时，优先处理地图按键
+    if(D.mapPanel&&!D.mapPanel.classList.contains('hidden')){
+        if(handleMapKeys(e)){e.preventDefault();return;}
+    }
     if(mo){
         const onChar=D.stepChar.classList.contains('active');
         if(k==='Escape'){cm();scb();e.preventDefault();return;}
@@ -553,12 +970,18 @@ function hkd(e){
 async function init(){
     cache();
 
+    // 主菜单
+    D.menuSingle.addEventListener('click',startSinglePlayer);
+    D.menuMulti.addEventListener('click',()=>showComingSoon('多人模式'));
+    D.menuCollection.addEventListener('click',showCollection);
+    D.menuSettings.addEventListener('click',()=>showComingSoon('设置'));
+    D.menuQuit.addEventListener('click',closeGame);
+    D.colClose.addEventListener('click',closeCollection);
+
     D.charOpts.forEach(o=>o.addEventListener('click',function(){sc(this.dataset.char);}));
     D.charNext.addEventListener('click',cc);
     D.modeBack.addEventListener('click',()=>ss('char'));
-    D.customBack.addEventListener('click',()=>ss('char'));
-    D.tabBtns.forEach(b=>b.addEventListener('click',()=>st(b.dataset.tab)));
-
+    
     D.mN.addEventListener('click',()=>sgm('normal'));
     D.mE.addEventListener('click',()=>sgm('elite'));
     D.mB.addEventListener('click',()=>sgm('boss'));
@@ -582,9 +1005,16 @@ async function init(){
     D.pi.addEventListener('click',()=>sp(`📤 弃牌堆 (${g.state?.discard_count||0}张)`,g.state?.discard_cards||[]));
     D.sl.addEventListener('click',slv);
     D.evBtn.addEventListener('click',evContinue);
+    D.dfRestart.addEventListener('click',defeatRestart);
+    D.dfRetry.addEventListener('click',defeatRetry);
+    D.dfMenu.addEventListener('click',defeatMenu);
+    // 地图面板
+    if(D.mapToggle)D.mapToggle.addEventListener('click',toggleMap);
+    if(D.mapPanelClose)D.mapPanelClose.addEventListener('click',()=>D.mapPanel.classList.add('hidden'));
+    initMapDrag();
     scb();
 
-    try{const r=await API.getState();if(r.success){as(r);D.modal.classList.add('hidden');ra();}else D.modal.classList.remove('hidden');}catch{D.modal.classList.remove('hidden');}
+    try{const r=await API.getState();if(r.success){as(r);hideMainMenu();D.modal.classList.add('hidden');ra();}else showMainMenu();}catch{showMainMenu();}
 }
 
 function al(t){const d=document.createElement('div');d.className='log-entry sys';d.textContent=t;D.la.appendChild(d);D.la.scrollTop=D.la.scrollHeight;}

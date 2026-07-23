@@ -717,20 +717,13 @@ class LifeTap(Card):
     def play(self, player, target):
         player.take_damage(self.hp_loss)
         player.energy += self.energy_gain
-        player.draw(1)
-        print(f"🌑 生命汲取：失去 {self.hp_loss} 生命，获得 {self.energy_gain} 能量并抽1张牌")
+        draw_count = 2 if self.upgraded else 1
+        player.draw(draw_count)
 
     def upgrade(self):
         self.upgraded = True
         self.description = "失去3点生命，获得2点能量，抽2张牌"
         self.hp_loss = 3
-
-    def play(self, player, target):
-        player.take_damage(self.hp_loss)
-        player.energy += self.energy_gain
-        draw_count = 2 if self.upgraded else 1
-        player.draw(draw_count)
-        print(f"🌑 生命汲取：失去 {self.hp_loss} 生命，获得 {self.energy_gain} 能量并抽{draw_count}张牌")
 
 
 class CurseBolt(Card):
@@ -799,28 +792,16 @@ class Transmute(Card):
 
     def play(self, player, target):
         if target.burn > 0:
-            amount = target.burn
+            amount = target.burn * (2 if self.upgraded else 1)
             target.burn = 0
             target.apply_poison(amount)
-            print(f"🔁 将 {amount} 层烧伤转化为中毒")
         else:
-            target.apply_poison(3)
-            print("🔁 目标无烧伤，施加3层中毒")
+            amount = 5 if self.upgraded else 3
+            target.apply_poison(amount)
 
     def upgrade(self):
         self.upgraded = True
         self.description = "将目标烧伤转化为双倍中毒，若无烧伤则施加5毒"
-
-    def play(self, player, target):
-        if target.burn > 0:
-            amount = target.burn * (2 if self.upgraded else 1)
-            target.burn = 0
-            target.apply_poison(amount)
-            print(f"🔁 转化为 {amount} 层中毒")
-        else:
-            amount = 5 if self.upgraded else 3
-            target.apply_poison(amount)
-            print(f"🔁 目标无烧伤，施加{amount}层中毒")
 
 
 class CurseCard(Card):

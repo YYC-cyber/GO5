@@ -1,0 +1,24 @@
+{
+  "seen_cards": [],
+  "seen_enemies": [
+    "哥布林",
+    "史莱姆",
+    "毒沼史莱姆"
+  ],
+  "seen_relics": [],
+  "total_wins": 0,
+  "total_games": 1,
+  "highest_stage": 1,
+  "char_stats": {
+    "elf": {
+      "wins": 0,
+      "games": 1,
+      "highest_stage": 1
+    }
+  },
+  "unlocked_chars": [
+    "warrior",
+    "wizard",
+    "elf"
+  ]
+}
