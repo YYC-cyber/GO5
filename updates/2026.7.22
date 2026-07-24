@@ -1,0 +1,29 @@
+---22/jul/2026(已修复)
+1. 事件结束后,点击继续前进无法结束弹窗,并进入到节点选择界面(✅)
+# 修复：在 evContinue() 中，隐藏弹窗后立即将 g.state.event_data 设为 null，这样后续 renderEventOverlay() 不会再重复显示。
+
+2. 被击败以后,出现一个弹窗,可以选择回到主菜单,或者重新开始当前关卡(新增重新开始当前关卡(仅战斗节点可重试),重新开始当前难度,回到主页面按钮)
+# 前端：(✅)
+renderDefeatOverlay() 根据 current_node.route_type 判断是否显示"重试当前关卡"按钮
+非战斗节点隐藏该按钮
+新增 defeatRetry() 调用 API.restartStage()
+# 涉及文件
+src/games/level_mode.py
+src/web_server.py
+static/index.html
+static/js/game.js
+
+另加:
+1. 修改精灵的技能或者卡牌
+2. 增加每个角色的卡池
+3. 增加角色卡组的稀有度
+4. 增加一个主菜单,可以选择单人模式,多人模式,图鉴,关闭游戏,设置
+页面加载 → 主菜单 → 单人模式 → 角色选择 → 模式选择 → 战斗
+                      ↑
+            失败弹窗/按 R/重新开始
+其他入口（按 R 重开、失败弹窗"回到主菜单"）都跳回主菜单。
+涉及文件
+static/index.html — 新增 #main-menu 弹窗结构
+static/js/game.js — 新增 showMainMenu/hideMainMenu/startSinglePlayer/showComingSoon/closeGame
+static/css/style.css — 新增 .menu-overlay/.menu-screen/.menu-btn 等样式
+

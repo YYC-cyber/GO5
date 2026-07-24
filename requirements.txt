@@ -1,0 +1,13 @@
+# 卡牌对决 - Python 依赖
+#
+# 运行环境：Python 3.10+
+# 后端仅需 Flask，其余功能（文件锁、原子写入、端口扫描等）均使用 Python 标准库
+# 前端无需额外依赖（原生 HTML/CSS/JS，Web Audio API 和 Canvas 均为浏览器内置）
+#
+# 安装方式：
+#   pip install -r requirements.txt
+#
+# 启动方式：
+#   python main.py
+
+Flask>=3.0,<4.0

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="g" cx="35%" cy="25%" r="75%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity=".95"/>
+      <stop offset="48%" stop-color="#1f2937" stop-opacity=".98"/>
+      <stop offset="100%" stop-color="#05070b"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".55"/>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="128" fill="#05070b"/>
+  <circle cx="128" cy="128" r="116" fill="url(#g)" stroke="#f59e0b" stroke-width="8"/>
+  <circle cx="128" cy="128" r="96" fill="none" stroke="#ffffff" stroke-opacity=".14" stroke-width="3"/>
+  <text x="128" y="116" text-anchor="middle" font-size="74" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" filter="url(#shadow)">⚔</text>
+  <text x="128" y="184" text-anchor="middle" font-size="54" font-weight="900" font-family="PingFang SC, Microsoft YaHei, sans-serif" fill="#fff" stroke="#000" stroke-width="4" paint-order="stroke" filter="url(#shadow)">勇</text>
+</svg>
